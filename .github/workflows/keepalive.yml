@@ -1,0 +1,40 @@
+name: Supabase keepalive
+
+# O plano free pausa o projeto após 7 dias sem requisição. Um ping a cada 3 dias
+# (com folga pro atraso habitual do cron do GitHub) mantém dev e produção acordados.
+# Se um projeto já estiver pausado, o job falha — restaurar pelo dashboard ou pelo
+# Management API (POST /v1/projects/{ref}/restore); ping não acorda projeto pausado.
+
+on:
+  schedule:
+    - cron: '0 12 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nome: producao
+            url_secret: VITE_SUPABASE_URL
+            key_secret: VITE_SUPABASE_ANON_KEY
+          - nome: dev
+            url_secret: DEV_SUPABASE_URL
+            key_secret: DEV_SUPABASE_ANON_KEY
+    name: ping ${{ matrix.nome }}
+    steps:
+      - name: consulta REST + Auth
+        env:
+          URL: ${{ secrets[matrix.url_secret] }}
+          KEY: ${{ secrets[matrix.key_secret] }}
+        run: |
+          set -u
+          rest=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$URL/rest/v1/characters_publico?select=id&limit=1")
+          auth=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "apikey: $KEY" "$URL/auth/v1/settings")
+          echo "${{ matrix.nome }}: rest=$rest auth=$auth"
+          [ "$rest" = "200" ] && [ "$auth" = "200" ]
