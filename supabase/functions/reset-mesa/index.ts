@@ -16,6 +16,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20';
+import { executarLimpeza } from './limpeza.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,17 +57,17 @@ async function listarArquivosRecursivo(
   bucket: string,
   prefixo: string,
 ): Promise<string[]> {
-  const { data: itens } = await admin.storage.from(bucket).list(prefixo, { limit: 1000 });
-  if (!itens) return [];
   const caminhos: string[] = [];
-  for (const item of itens) {
-    const caminho = prefixo ? `${prefixo}/${item.name}` : item.name;
-    // pasta = sem metadata (id null); arquivo = tem metadata
-    if (item.id === null) {
-      caminhos.push(...(await listarArquivosRecursivo(admin, bucket, caminho)));
-    } else {
-      caminhos.push(caminho);
+  for (let offset = 0; ; offset += 1000) {
+    const { data: itens, error } = await admin.storage.from(bucket).list(prefixo, { limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } });
+    if (error) throw error;
+    if (!itens) throw new Error('listagem de imagens sem resposta');
+    for (const item of itens) {
+      const caminho = prefixo ? prefixo + '/' + item.name : item.name;
+      if (item.id === null) caminhos.push(...await listarArquivosRecursivo(admin, bucket, caminho));
+      else caminhos.push(caminho);
     }
+    if (itens.length < 1000) break;
   }
   return caminhos;
 }
@@ -142,44 +143,45 @@ Deno.serve(async (req) => {
   }
   await admin.rpc('zerar_tentativa_token_global', { p_chave: 'reset-mesa' });
 
-  // 1. tabelas — `.not('id','is',null)` é a condição sempre-verdadeira que o PostgREST exige
-  //    pra aceitar um delete sem filtro.
-  for (const tabela of TABELAS_PARA_ESVAZIAR) {
-    const { error } = await admin.from(tabela).delete().not('id', 'is', null);
-    if (error) console.error(`[reset-mesa] limpar ${tabela} falhou`, error);
-  }
-
-  // 2. bucket Storage `midia` — imagens de mapa/npc/ficha.
-  try {
-    const arquivos = await listarArquivosRecursivo(admin, 'midia', '');
-    if (arquivos.length > 0) {
-      const { error } = await admin.storage.from('midia').remove(arquivos);
-      if (error) console.error('[reset-mesa] limpar bucket midia falhou', error);
-    }
-  } catch (e) {
-    console.error('[reset-mesa] listar bucket midia falhou', e);
-  }
-
-  // 3. R2 — só `sfx/` (soundpad). `saves/` (backups) fica intocado de propósito.
+  // Confere a configuração antes de iniciar qualquer exclusão.
   const accountId = Deno.env.get('R2_ACCOUNT_ID');
   const bucketR2 = Deno.env.get('R2_BUCKET_NAME');
   const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID');
   const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY');
-  if (accountId && bucketR2 && accessKeyId && secretAccessKey) {
-    const r2 = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' });
-    try {
-      const chaves = await listarChavesR2(r2, accountId, bucketR2, 'sfx/');
-      for (const chave of chaves) {
-        const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucketR2}/${chave}`;
-        const resposta = await r2.fetch(endpoint, { method: 'DELETE' });
-        if (!resposta.ok && resposta.status !== 404) {
-          console.error(`[reset-mesa] apagar R2 ${chave} falhou`, resposta.status);
-        }
-      }
-    } catch (e) {
-      console.error('[reset-mesa] limpar R2 sfx/ falhou', e);
-    }
+  if (!accountId || !bucketR2 || !accessKeyId || !secretAccessKey) {
+    return jsonResponse({ ok: false, erro: 'armazenamento de áudio não configurado — limpeza não iniciada' }, 503);
   }
-
-  return jsonResponse({ ok: true }, 200);
+  const r2 = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' });
+  const resultado = await executarLimpeza([
+    ...TABELAS_PARA_ESVAZIAR.map((tabela) => ({
+      nome: 'tabela ' + tabela,
+      executar: async () => {
+        const { error } = await admin.from(tabela).delete().not('id', 'is', null);
+        if (error) throw error;
+      },
+    })),
+    {
+      nome: 'imagens',
+      executar: async () => {
+        const arquivos = await listarArquivosRecursivo(admin, 'midia', '');
+        for (let i = 0; i < arquivos.length; i += 1000) {
+          const { error } = await admin.storage.from('midia').remove(arquivos.slice(i, i + 1000));
+          if (error) throw error;
+        }
+      },
+    },
+    {
+      nome: 'áudio',
+      executar: async () => {
+        // Backups em saves/ ficam intocados. 404 permite repetir uma limpeza parcial.
+        const chaves = await listarChavesR2(r2, accountId, bucketR2, 'sfx/');
+        for (const chave of chaves) {
+          const endpoint = 'https://' + accountId + '.r2.cloudflarestorage.com/' + bucketR2 + '/' + chave;
+          const resposta = await r2.fetch(endpoint, { method: 'DELETE' });
+          if (!resposta.ok && resposta.status !== 404) throw new Error('exclusão de áudio falhou: ' + resposta.status);
+        }
+      },
+    },
+  ]);
+  return jsonResponse(resultado, resultado.ok ? 200 : 500);
 });

@@ -29,9 +29,23 @@ beforeEach(() => {
 });
 
 describe('resetarMesaCompleta', () => {
+  it.each([undefined, { ok: false, erro: 'limpeza incompleta' }, {}])('preserva a mesa sem confirmação explícita: %j', async (data) => {
+    mesaComUmaFicha();
+    const antes = useStore.getState();
+    h.clienteAtual = clienteFalso(vi.fn().mockResolvedValue({ data, error: null }));
+    expect((await resetarMesaCompleta('token')).ok).toBe(false);
+    expect(useStore.getState()).toBe(antes);
+  });
+  it('preserva a mesa se a chamada lançar', async () => {
+    mesaComUmaFicha();
+    const antes = useStore.getState();
+    h.clienteAtual = clienteFalso(vi.fn().mockRejectedValue(new Error('rede')));
+    expect((await resetarMesaCompleta('token')).ok).toBe(false);
+    expect(useStore.getState()).toBe(antes);
+  });
   it('chama a Edge Function reset-mesa com o token informado', async () => {
     mesaComUmaFicha();
-    const invoke = vi.fn().mockResolvedValue({ error: null });
+    const invoke = vi.fn().mockResolvedValue({ data: { ok: true }, error: null });
     h.clienteAtual = clienteFalso(invoke);
 
     await resetarMesaCompleta('token-secreto');
@@ -41,7 +55,7 @@ describe('resetarMesaCompleta', () => {
 
   it('em sucesso, zera o estado local', async () => {
     mesaComUmaFicha();
-    h.clienteAtual = clienteFalso(vi.fn().mockResolvedValue({ error: null }));
+    h.clienteAtual = clienteFalso(vi.fn().mockResolvedValue({ data: { ok: true }, error: null }));
 
     const resultado = await resetarMesaCompleta('token-secreto');
 

@@ -37,8 +37,13 @@ async function extrairErroFuncao(error: unknown): Promise<string> {
 export async function resetarMesaCompleta(resetToken?: string): Promise<ResultadoReset> {
   const cliente = supabase;
   if (cliente) {
-    const { error } = await cliente.functions.invoke('reset-mesa', { body: { reset_token: resetToken } });
-    if (error) return { ok: false, erro: await extrairErroFuncao(error) };
+    try {
+      const { data, error } = await cliente.functions.invoke('reset-mesa', { body: { reset_token: resetToken } });
+      if (error) return { ok: false, erro: await extrairErroFuncao(error) };
+      if (data?.ok !== true) return { ok: false, erro: data?.erro ?? 'o servidor não confirmou a limpeza — estado local preservado' };
+    } catch (error) {
+      return { ok: false, erro: await extrairErroFuncao(error) };
+    }
   }
 
   useStore.getState().resetarEstado();
