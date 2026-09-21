@@ -150,7 +150,7 @@ O CI sobe **só o frontend** no push pra `main`. Migração e Edge Function exig
 - [ ] `git log --oneline -- supabase/functions/` — algum commit recente sem `functions deploy` correspondente? Cruzar com `npx supabase functions list --project-ref ahhzgxcafoaodetwkyti` (compara `updated_at` com a data do commit)
 - [ ] Token de mestre confirmado **antes** da mesa (sem ele, `is_gm()` falha e "sessão limpa" para de apagar no servidor)
 - [ ] `VITE_FASE_D_ROLAGEM_REMOTA` continua desligada — falta teste com dois aparelhos físicos
-- [ ] `reset-mesa` **versão 5** em produção — código commitado em 20/09 e deployado só no dev (smoke test: 401 no token errado, function sobe com `limpeza.ts`). Produção exige à mão: `npx supabase functions deploy reset-mesa --project-ref ahhzgxcafoaodetwkyti --use-api`, conferir com `functions list`. Sem isso o cliente novo continua funcionando (a v4 também responde `ok:true`), só não detecta limpeza parcial.
+- [x] `reset-mesa` **versão 5** em produção — deployada em 20/09 (dev e produção), conferida por `functions list` + smoke test (401 no token errado, function sobe com `limpeza.ts`).
 - [ ] Um "sessão limpa" **real** contra o dev antes de confiar no de produção — o reset novo só foi validado por teste simulado e smoke test, nunca executado de ponta a ponta.
 - [ ] Link da CLI (`supabase/.temp/project-ref`) está no **dev** desde 20/09, ao contrário do que `deploy.md` manda — `migration list --linked` mostra o dev, não produção. Relinkar ou passar `--project-ref` explícito sempre.
 
