@@ -10,6 +10,7 @@ describe('fadeVolume', () => {
   let agora: number;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     callbacks = [];
     agora = 0;
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
@@ -20,6 +21,7 @@ describe('fadeVolume', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -32,6 +34,28 @@ describe('fadeVolume', () => {
   };
 
   const audioFalso = (volumeInicial: number) => ({ volume: volumeInicial }) as HTMLAudioElement;
+
+  it('conclui a pausa mesmo sem frames e não repete o callback quando os frames voltam', () => {
+    const audio = audioFalso(0.8);
+    const pausar = vi.fn();
+    fadeVolume(audio, 0, 700, { current: 0 }, pausar);
+    vi.advanceTimersByTime(700);
+    expect(audio.volume).toBe(0);
+    expect(pausar).toHaveBeenCalledOnce();
+    avancar(1000);
+    expect(pausar).toHaveBeenCalledOnce();
+  });
+
+  it('timer de uma pausa cancelada não interrompe um play posterior', () => {
+    const audio = audioFalso(0.8);
+    const token = { current: 0 };
+    const pausar = vi.fn();
+    fadeVolume(audio, 0, 700, token, pausar);
+    fadeVolume(audio, 0.6, 300, token);
+    vi.advanceTimersByTime(1000);
+    expect(pausar).not.toHaveBeenCalled();
+    expect(audio.volume).toBe(0.6);
+  });
 
   it('duração <= 0 aplica o alvo na hora, sem esperar frame', () => {
     const audio = audioFalso(0.8);

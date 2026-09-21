@@ -1,6 +1,6 @@
 import type { EntradaLog, EntradaRoll, TipoLog } from '../state/types';
 import { supabase } from '../lib/supabaseClient';
-import { assinarStatusCanal, desconectarCanal } from '../lib/statusMesa';
+import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
 import { executarComRetentativa, resolverPendencia, retomarPendenciasPersistidas } from './filaPendencias';
 
@@ -204,6 +204,66 @@ export function iniciarSyncLogRolls(): () => void {
     }
   }
 
+  /**
+   * Refetch de reconexão — só dispara quando o canal SAI de erro e VOLTA a `SUBSCRIBED`; o
+   * primeiro `SUBSCRIBED` já é coberto pela busca inicial acima.
+   *
+   * Deliberadamente diferente daquela busca: aqui é MERGE por id, não substituição.
+   * `log`/`rollsLog` são append-only e podem ter entrada criada localmente durante a queda que
+   * ainda não subiu — trocar a lista inteira pela do servidor apagaria essa entrada da tela.
+   * Casar por id é também o que impede a rebusca de duplicar o que já está na lista. O que veio
+   * de fora e a gente perdeu entra na frente (é o mais recente); o que já existe é substituído
+   * no lugar, pra pegar mudança de `visibilidade`.
+   */
+  const refetchLog = () =>
+    cliente
+      .from('log_publico')
+      .select('*')
+      .order('criado_em', { ascending: false })
+      .limit(LIMITE_HISTORICO_INICIAL)
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        aplicandoRemoto = true;
+        try {
+          const remotos = (data as LinhaLog[]).map(paraEntradaLog);
+          const remotosPorId = new Map(remotos.map((e) => [e.id, e]));
+          useStore.setState((s) => {
+            const conhecidos = new Set(s.log.map((e) => e.id));
+            const novos = remotos.filter((e) => !conhecidos.has(e.id));
+            const atualizados = s.log.map((local) => remotosPorId.get(local.id) ?? local);
+            return { log: [...novos, ...atualizados] };
+          });
+        } finally {
+          logAnterior = useStore.getState().log;
+          aplicandoRemoto = false;
+        }
+      });
+
+  /** Igual a `refetchLog`, pro canal irmão. Ver o comentário lá. */
+  const refetchRolls = () =>
+    cliente
+      .from('rolls_publicas')
+      .select('*')
+      .order('criado_em', { ascending: false })
+      .limit(LIMITE_HISTORICO_INICIAL)
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        aplicandoRemoto = true;
+        try {
+          const remotos = (data as LinhaRoll[]).map(paraEntradaRoll);
+          const remotosPorId = new Map(remotos.map((r) => [r.id, r]));
+          useStore.setState((s) => {
+            const conhecidos = new Set(s.rollsLog.map((r) => r.id));
+            const novos = remotos.filter((r) => !conhecidos.has(r.id));
+            const atualizados = s.rollsLog.map((local) => remotosPorId.get(local.id) ?? local);
+            return { rollsLog: [...novos, ...atualizados] };
+          });
+        } finally {
+          rollsAnterior = useStore.getState().rollsLog;
+          aplicandoRemoto = false;
+        }
+      });
+
   const canalLog = cliente
     .channel('log-publico-sync')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'log_publico' }, (payload) => {
@@ -224,7 +284,7 @@ export function iniciarSyncLogRolls(): () => void {
         aplicandoRemoto = false;
       }
     })
-    .subscribe(assinarStatusCanal('log-publico-sync'));
+    .subscribe(assinarStatusCanalComRefetch('log-publico-sync', refetchLog));
 
   const canalRolls = cliente
     .channel('rolls-publicas-sync')
@@ -246,7 +306,7 @@ export function iniciarSyncLogRolls(): () => void {
         aplicandoRemoto = false;
       }
     })
-    .subscribe(assinarStatusCanal('rolls-publicas-sync'));
+    .subscribe(assinarStatusCanalComRefetch('rolls-publicas-sync', refetchRolls));
 
   return () => {
     unsubscribeLocal();

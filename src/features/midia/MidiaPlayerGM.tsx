@@ -104,12 +104,16 @@ export default function MidiaPlayerGM() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    // Mudança no duck/volume não deve cancelar a rampa que vai concluir a pausa.
+    if (!useStore.getState().midia.tocando) return;
     const volumeAlvo = midia.volume * (efeitoTocando ? FATOR_DUCK : 1);
     fadeVolume(audio, volumeAlvo, efeitoTocando ? FADE_DUCK_MS : 0, fadeTokenRef);
   }, [midia.volume, efeitoTocando]);
 
   const aoTerminar = () => {
     const s = useStore.getState();
+    // `ended` pode chegar durante o fade de pausa. Não reverte a intenção do mestre.
+    if (!s.midia.tocando) return;
     const ordenadas = [...s.midia.faixas].sort((a, b) => a.ordem - b.ordem);
     const idxAtual = ordenadas.findIndex((f) => f.id === s.midia.faixaAtualId);
 

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { assinarStatusCanal, desconectarCanal } from '../lib/statusMesa';
+import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
 import type { EstadoMidia, ModoLoopMidia } from '../state/types';
 import { criarDebouncePorChave } from './debounce';
@@ -124,16 +124,22 @@ export function iniciarSyncMidiaEstado(): () => void {
     }
   };
 
-  // busca inicial — recupera o estado ao vivo se o GM recarregar a página no meio de uma faixa.
-  cliente
-    .from('midia_estado')
-    .select('*')
-    .eq('id', ID_MIDIA)
-    .maybeSingle()
-    .then(({ data, error }) => {
-      if (error || !data) return;
-      aplicarLinha(data as Linha);
-    });
+  /** Busca inicial E refetch de reconexão — recupera o estado ao vivo se o GM recarregar a
+   *  página no meio de uma faixa, e também depois de uma queda de canal (o Realtime não
+   *  reenvia o evento perdido durante a queda). `aplicarLinha` já ignora quando existe push
+   *  local pendente, então a rebusca não pisa num play/pause ainda não confirmado. */
+  const refetchEstado = () =>
+    cliente
+      .from('midia_estado')
+      .select('*')
+      .eq('id', ID_MIDIA)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        aplicarLinha(data as Linha);
+      });
+
+  void refetchEstado();
 
   const canal: ReturnType<Cliente['channel']> = cliente
     .channel('midia-estado-sync')
@@ -144,7 +150,7 @@ export function iniciarSyncMidiaEstado(): () => void {
       if (!linha) return;
       aplicarLinha(linha);
     })
-    .subscribe(assinarStatusCanal('midia-estado-sync'));
+    .subscribe(assinarStatusCanalComRefetch('midia-estado-sync', refetchEstado));
 
   return () => {
     unsubscribeLocal();

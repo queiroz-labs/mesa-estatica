@@ -1,6 +1,6 @@
 import type { FaixaMidia } from '../state/types';
 import { supabase } from '../lib/supabaseClient';
-import { assinarStatusCanal, desconectarCanal } from '../lib/statusMesa';
+import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
 import { criarDebouncePorChave } from './debounce';
 import { executarComRetentativa, marcarEmVoo, resolverPendencia, retomarPendenciasPersistidas } from './filaPendencias';
@@ -63,20 +63,43 @@ export function iniciarSyncMidiaFaixas(): () => void {
   let faixasAnteriores = useStore.getState().midia.faixas;
   const pendencias = new Set<string>();
 
-  cliente
-    .from('midia_faixas')
-    .select('*')
-    .order('ordem', { ascending: true })
-    .then(({ data, error }) => {
-      if (error || !data) return;
-      aplicandoRemoto = true;
-      try {
-        useStore.setState((s) => ({ midia: { ...s.midia, faixas: (data as LinhaFaixa[]).map(paraFaixa) } }));
-      } finally {
-        faixasAnteriores = useStore.getState().midia.faixas;
-        aplicandoRemoto = false;
-      }
-    });
+  /** Busca inicial E refetch de reconexão (canal caiu e voltou — o Realtime não reenvia o
+   *  evento perdido durante a queda) — merge preservando qualquer faixa com push em voo
+   *  (`pendencias`), mesmo formato de `refetchMapas` em `mapasBibliotecaSync.ts`, em vez de
+   *  substituir a lista inteira (que apagaria da tela um upload ainda não confirmado). */
+  const refetchFaixas = () =>
+    cliente
+      .from('midia_faixas')
+      .select('*')
+      .order('ordem', { ascending: true })
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        aplicandoRemoto = true;
+        try {
+          const remotos = (data as LinhaFaixa[]).map(paraFaixa);
+          const remotosPorId = new Map(remotos.map((f) => [f.id, f]));
+          useStore.setState((s) => {
+            const faixas: FaixaMidia[] = [];
+            for (const local of s.midia.faixas) {
+              if (pendencias.has(local.id)) {
+                faixas.push(local);
+                continue;
+              }
+              const remoto = remotosPorId.get(local.id);
+              if (remoto) faixas.push(remoto);
+            }
+            for (const remoto of remotos) {
+              if (!s.midia.faixas.some((f) => f.id === remoto.id)) faixas.push(remoto);
+            }
+            return { midia: { ...s.midia, faixas } };
+          });
+        } finally {
+          faixasAnteriores = useStore.getState().midia.faixas;
+          aplicandoRemoto = false;
+        }
+      });
+
+  void refetchFaixas();
 
   const agendarUpsert = criarDebouncePorChave<FaixaMidia>(ATRASO_PUSH_MS, (_id, faixa) => {
     pendencias.delete(_id);
@@ -143,7 +166,7 @@ export function iniciarSyncMidiaFaixas(): () => void {
         aplicandoRemoto = false;
       }
     })
-    .subscribe(assinarStatusCanal('midia-faixas-sync'));
+    .subscribe(assinarStatusCanalComRefetch('midia-faixas-sync', refetchFaixas));
 
   return () => {
     unsubscribeLocal();

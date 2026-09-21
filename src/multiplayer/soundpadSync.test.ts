@@ -86,6 +86,19 @@ vi.mock('../lib/supabaseClient', () => ({
 }));
 vi.mock('../lib/statusMesa', () => ({
   assinarStatusCanal: vi.fn(() => vi.fn()),
+  // mesma lógica de edge-detection do real (statusMesa.ts), reimplementada aqui como nos
+  // outros mocks deste projeto — evita depender do módulo de verdade.
+  assinarStatusCanalComRefetch: vi.fn((_nome: string, refetch: () => void | Promise<void>) => {
+    let viuErro = false;
+    return (status: string) => {
+      if (status === 'SUBSCRIBED') {
+        if (viuErro) void refetch();
+        viuErro = false;
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        viuErro = true;
+      }
+    };
+  }),
   desconectarCanal: vi.fn(),
   useStatusMesa: {
     getState: vi.fn(() => ({ canaisConectados: new Set(), canaisComErro: new Set() })),
@@ -166,5 +179,73 @@ describe('iniciarSyncSoundpad — marca "em voo" antes do debounce disparar', ()
     useStore.getState().definirVolumeSoundpad(0.5);
 
     expect(retomarPendenciasPersistidas('soundpad-sync')).toContain('estado');
+  });
+});
+
+describe('iniciarSyncSoundpad — refetch de reconexão', () => {
+  let cleanup: (() => void) | undefined;
+
+  beforeEach(() => {
+    useStore.setState(criarEstadoInicial());
+  });
+
+  afterEach(() => {
+    cleanup?.();
+    cleanup = undefined;
+    h.clienteAtual = null;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // `ultimoDisparo` fica de fora da rebusca de propósito: a linha do servidor carrega o carimbo
+  // do último efeito disparado, e reaplicá-lo ao reconectar soltaria o som na mesa no meio da
+  // cena. O volume, esse sim, tem que voltar.
+  it('traz o volume de volta mas nunca o último disparo — reconectar não pode ressoar um efeito antigo', async () => {
+    vi.stubGlobal('localStorage', criarStorageFalso());
+    const callbacks: ((status: string) => void)[] = [];
+    const estado = {
+      id: 'soundpad',
+      volume: 0.42,
+      disparo_slot: 3,
+      disparo_em: '2026-09-07T01:00:00.000Z',
+      disparo_tipo: 'tocar' as const,
+    };
+
+    const channelObj: any = {};
+    channelObj.on = () => channelObj;
+    channelObj.subscribe = (cb?: (status: string) => void) => {
+      if (cb) callbacks.push(cb);
+      cb?.('SUBSCRIBED');
+      return channelObj;
+    };
+
+    h.clienteAtual = {
+      from: (table: string) => {
+        const resposta = table === 'soundpad_estado' ? { data: estado, error: null } : { data: [], error: null };
+        const b: any = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.maybeSingle = () => Promise.resolve(resposta);
+        b.then = (resolve: (r: typeof resposta) => unknown) => Promise.resolve(resposta).then(resolve);
+        b.upsert = () => Promise.resolve({ error: null });
+        b.delete = () => b;
+        return b;
+      },
+      channel: () => channelObj,
+      removeChannel: () => {},
+    };
+
+    cleanup = iniciarSyncSoundpad();
+    await vi.waitFor(() => expect(useStore.getState().soundpad.volume).toBe(0.42));
+    const disparoAntes = useStore.getState().soundpad.ultimoDisparo;
+
+    // muda o volume local pra dar como provar que a rebusca de fato rodou depois da reconexão
+    useStore.setState((s) => ({ soundpad: { ...s.soundpad, volume: 0.1 } }));
+
+    callbacks[0]('CHANNEL_ERROR');
+    callbacks[0]('SUBSCRIBED');
+
+    await vi.waitFor(() => expect(useStore.getState().soundpad.volume).toBe(0.42));
+    expect(useStore.getState().soundpad.ultimoDisparo).toBe(disparoAntes);
   });
 });

@@ -11,6 +11,19 @@ vi.mock('../lib/supabaseClient', () => ({
 }));
 vi.mock('../lib/statusMesa', () => ({
   assinarStatusCanal: vi.fn(() => vi.fn()),
+  // mesma lógica de edge-detection do real (statusMesa.ts), reimplementada aqui como nos
+  // outros mocks deste projeto — evita depender do módulo de verdade.
+  assinarStatusCanalComRefetch: vi.fn((_nome: string, refetch: () => void | Promise<void>) => {
+    let viuErro = false;
+    return (status: string) => {
+      if (status === 'SUBSCRIBED') {
+        if (viuErro) void refetch();
+        viuErro = false;
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        viuErro = true;
+      }
+    };
+  }),
   desconectarCanal: vi.fn(),
 }));
 
@@ -141,5 +154,64 @@ describe('iniciarSyncLogRolls', () => {
     await vi.waitFor(() => expect(mock.updates.some((u) => u.table === 'rolls_publicas' && u.id === id)).toBe(true));
     const atualizado = mock.updates.find((u) => u.table === 'rolls_publicas' && u.id === id)!;
     expect(atualizado.payload.visibilidade).toBe('publica');
+  });
+
+  // O refetch de reconexão é MERGE por id, não substituição (ver comentário em logRollsSync.ts).
+  // Os dois jeitos errados de fazer isso quebram ao vivo: concatenar duplica o log inteiro na
+  // tela, e substituir apaga a entrada que o mestre registrou enquanto o canal estava caído.
+  it('refetch de reconexão faz merge por id — traz o que passou na queda, sem duplicar nem apagar o que só existe local', async () => {
+    const callbacks: ((status: string) => void)[] = [];
+    let linhasLog: unknown[] | null = null;
+
+    const channelObj: any = {};
+    channelObj.on = () => channelObj;
+    channelObj.subscribe = (cb?: (status: string) => void) => {
+      if (cb) callbacks.push(cb);
+      cb?.('SUBSCRIBED');
+      return channelObj;
+    };
+
+    h.clienteAtual = {
+      from: (table: string) => {
+        const b: any = {};
+        b.select = () => b;
+        b.order = () => b;
+        b.limit = () => Promise.resolve({ data: table === 'log_publico' ? linhasLog : null, error: null });
+        b.insert = () => Promise.resolve({ error: null });
+        b.update = () => ({ eq: () => Promise.resolve({ error: null }) });
+        b.delete = () => ({ not: () => Promise.resolve({ error: null }) });
+        return b;
+      },
+      channel: () => channelObj,
+      removeChannel: () => {},
+    };
+
+    cleanup = iniciarSyncLogRolls();
+    await vi.waitFor(() => expect(useStore.getState().log).toEqual([]));
+
+    // entrada registrada pelo mestre enquanto o canal estava caído — ainda não subiu
+    useStore.getState().registrarLog('teste', 'anotada durante a queda', null);
+    const idLocal = useStore.getState().log[0].id;
+
+    // o servidor tem essa mesma entrada MAIS uma de outro cliente, que a gente perdeu na queda
+    const linha = (id: string, texto: string) => ({
+      id,
+      tipo: 'teste',
+      personagem_id: null,
+      texto,
+      criado_em: '2026-09-07T01:00:00.000Z',
+      visibilidade: 'publica',
+      rodada: null,
+    });
+    linhasLog = [linha('perdida-na-queda', 'veio de outro cliente'), linha(idLocal, 'anotada durante a queda')];
+
+    callbacks[0]('CHANNEL_ERROR');
+    callbacks[0]('SUBSCRIBED');
+
+    await vi.waitFor(() => expect(useStore.getState().log).toHaveLength(2));
+    const ids = useStore.getState().log.map((e) => e.id);
+    expect(new Set(ids).size).toBe(2); // não duplicou o que já estava na lista
+    expect(ids).toContain('perdida-na-queda'); // trouxe o que passou durante a queda
+    expect(ids).toContain(idLocal); // não apagou o que só existia local
   });
 });

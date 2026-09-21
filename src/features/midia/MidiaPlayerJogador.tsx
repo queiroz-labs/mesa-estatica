@@ -107,6 +107,7 @@ export default function MidiaPlayerJogador() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (!useStore.getState().midia.tocando) return;
     const volumeAlvo = midia.volume * (efeitoTocando ? FATOR_DUCK : 1);
     fadeVolume(audio, volumeAlvo, efeitoTocando ? FADE_DUCK_MS : 0, fadeTokenRef);
   }, [midia.volume, efeitoTocando]);

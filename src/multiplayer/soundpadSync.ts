@@ -1,6 +1,6 @@
 import type { SomSoundpad } from '../state/types';
 import { supabase } from '../lib/supabaseClient';
-import { assinarStatusCanal, desconectarCanal } from '../lib/statusMesa';
+import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
 import { criarDebouncePorChave } from './debounce';
 import { executarComRetentativa, marcarEmVoo, resolverPendencia, retomarPendenciasPersistidas } from './filaPendencias';
@@ -99,35 +99,51 @@ export function iniciarSyncSoundpad(): () => void {
     }
   };
 
-  cliente
-    .from('soundpad_sons')
-    .select('*')
-    .then(({ data, error }) => {
-      if (error || !data) return;
-      aplicar(() =>
-        useStore.setState((s) => ({
-          soundpad: { ...s.soundpad, sons: (data as LinhaSom[]).map(paraSom) },
-        })),
-      );
-    });
-
-  cliente
-    .from('soundpad_estado')
-    .select('*')
-    .eq('id', 'soundpad')
-    .maybeSingle()
-    .then(({ data, error }) => {
-      if (error || !data) return;
-      const linha = data as LinhaEstadoSoundpad;
-      aplicandoRemoto = true;
-      try {
-        // `ultimoDisparo` NÃO entra no fetch inicial — carimbo antigo dispararia o efeito
-        // no boot de quem acabou de entrar na sessão.
-        useStore.setState((s) => ({ soundpad: { ...s.soundpad, volume: linha.volume } }));
-      } finally {
-        aplicandoRemoto = false;
+  /** Busca inicial E refetch de reconexão (canal caiu e voltou — o Realtime não reenvia o
+   *  evento perdido durante a queda). Merge por slot preservando o que tem push em voo
+   *  (`pendencias`), em vez de substituir a lista, senão a rebusca apaga da tela um som
+   *  recém-trocado que ainda não confirmou. */
+  const refetchSoundpad = () =>
+    Promise.all([
+      cliente.from('soundpad_sons').select('*'),
+      cliente.from('soundpad_estado').select('*').eq('id', 'soundpad').maybeSingle(),
+    ]).then(([sonsRes, estadoRes]) => {
+      if (sonsRes.data) {
+        const remotos = (sonsRes.data as LinhaSom[]).map(paraSom);
+        const remotosPorSlot = new Map(remotos.map((som) => [som.slot, som]));
+        aplicar(() =>
+          useStore.setState((s) => {
+            const sons: SomSoundpad[] = [];
+            for (const local of s.soundpad.sons) {
+              if (pendencias.has(String(local.slot))) {
+                sons.push(local);
+                continue;
+              }
+              const remoto = remotosPorSlot.get(local.slot);
+              if (remoto) sons.push(remoto);
+            }
+            for (const remoto of remotos) {
+              if (!s.soundpad.sons.some((x) => x.slot === remoto.slot)) sons.push(remoto);
+            }
+            return { soundpad: { ...s.soundpad, sons } };
+          }),
+        );
+      }
+      const linha = estadoRes.data as LinhaEstadoSoundpad | null;
+      if (linha) {
+        aplicandoRemoto = true;
+        try {
+          // `ultimoDisparo` NÃO entra aqui — carimbo antigo dispararia o efeito no boot de
+          // quem acabou de entrar na sessão, e numa reconexão soltaria um som na mesa no meio
+          // da cena. Só o volume volta do servidor.
+          useStore.setState((s) => ({ soundpad: { ...s.soundpad, volume: linha.volume } }));
+        } finally {
+          aplicandoRemoto = false;
+        }
       }
     });
+
+  void refetchSoundpad();
 
   const agendarUpsert = criarDebouncePorChave<SomSoundpad>(ATRASO_PUSH_MS, (_chave, som) => {
     pendencias.delete(_chave);
@@ -248,7 +264,7 @@ export function iniciarSyncSoundpad(): () => void {
         aplicandoRemoto = false;
       }
     })
-    .subscribe(assinarStatusCanal('soundpad-sync'));
+    .subscribe(assinarStatusCanalComRefetch('soundpad-sync', refetchSoundpad));
 
   return () => {
     unsubscribeLocal();

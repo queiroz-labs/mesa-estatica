@@ -24,13 +24,26 @@ export function fadeVolume(
   const meuToken = ++tokenRef.current;
   const inicio = performance.now();
   const de = audio.volume;
+  let terminou = false;
+  // Abas em segundo plano podem suspender rAF enquanto o áudio continua tocando.
+  // A conclusão (incluindo pause()) não pode depender de um próximo frame visual.
+  const finalizar = () => {
+    if (terminou) return;
+    terminou = true;
+    clearTimeout(limite);
+    if (tokenRef.current !== meuToken) return;
+    audio.volume = alvoClamped;
+    aoTerminar?.();
+  };
+  const limite = setTimeout(finalizar, duracaoMs);
 
   const passo = (agora: number) => {
-    if (tokenRef.current !== meuToken) return;
+    if (terminou) return;
+    if (tokenRef.current !== meuToken) { finalizar(); return; }
     const t = Math.min(1, (agora - inicio) / duracaoMs);
     audio.volume = de + (alvoClamped - de) * t;
     if (t < 1) requestAnimationFrame(passo);
-    else aoTerminar?.();
+    else finalizar();
   };
   requestAnimationFrame(passo);
 }
