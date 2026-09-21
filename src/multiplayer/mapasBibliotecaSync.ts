@@ -57,6 +57,17 @@ export const paraMapa = (r: LinhaMapa): MapaBiblioteca => ({
 /** Ids com upsert local agendado (debounce ainda não disparou) ou em voo — mesmo papel de
  *  `pendencias` em `tokensSync.ts`. Um refetch de reconexão nunca pisa num item marcado aqui. */
 const pendencias = new Set<string>();
+// O ponteiro ativo espera esta confirmação: o FK não aceita um mapa ainda em upload/debounce.
+const ouvintesConfirmacao = new Set<(id: string) => void>();
+export const mapaAguardandoEnvio = (id: string): boolean => pendencias.has(id);
+export function aoConfirmarMapa(ouvinte: (id: string) => void): () => void {
+  ouvintesConfirmacao.add(ouvinte);
+  return () => { ouvintesConfirmacao.delete(ouvinte); };
+}
+function confirmarMapa(id: string): void {
+  pendencias.delete(id);
+  for (const ouvinte of ouvintesConfirmacao) ouvinte(id);
+}
 
 /** Ids que sofreram DELETE remoto enquanto um upsert local pra eles ainda estava em voo — sem
  *  isso, o upsert (agendado ANTES do DELETE chegar) ressuscitava a linha no servidor logo depois
@@ -131,6 +142,8 @@ export function iniciarSyncMapasBiblioteca(): () => void {
           // que o upsert acabou de causar, tanto local quanto no servidor.
           useStore.setState((s) => ({ mapa: { ...s.mapa, biblioteca: s.mapa.biblioteca.filter((m) => m.id !== _id) } }));
           void cliente.from('mapas_biblioteca').delete().eq('id', _id);
+        } else if (!resultado?.error) {
+          confirmarMapa(_id);
         }
         return resultado;
       }),
@@ -169,7 +182,14 @@ export function iniciarSyncMapasBiblioteca(): () => void {
       const id = chave.slice(PREFIXO_DELETE.length);
       executarComRetentativa('mapas-biblioteca-sync', chave, () => cliente.from('mapas_biblioteca').delete().eq('id', id));
     } else if (replay) {
-      executarComRetentativa('mapas-biblioteca-sync', chave, () => cliente.from('mapas_biblioteca').upsert(paraLinha(replay)));
+      if (ehDataUrl(replay.imagemUrl)) continue;
+      pendencias.add(replay.id);
+      executarComRetentativa('mapas-biblioteca-sync', chave, () =>
+        Promise.resolve(cliente.from('mapas_biblioteca').upsert(paraLinha(replay))).then((resultado) => {
+          if (!resultado?.error) confirmarMapa(replay.id);
+          return resultado;
+        }),
+      );
     } else {
       resolverPendencia('mapas-biblioteca-sync', chave);
     }

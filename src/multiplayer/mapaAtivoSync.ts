@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabaseClient';
 import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
 import { executarComRetentativa, marcarEmVoo, retomarPendenciasPersistidas } from './filaPendencias';
+import { aoConfirmarMapa, mapaAguardandoEnvio } from './mapasBibliotecaSync';
+import { ehDataUrl } from './imagemPendente';
 
 type Cliente = NonNullable<typeof supabase>;
 
@@ -38,12 +40,14 @@ export function iniciarSyncMapaAtivo(): () => void {
     }
   };
 
-  const push = () =>
-    cliente
+  const push = () => {
+    const id = useStore.getState().mapa.mapaAtivoId;
+    return cliente
       .from('mapa_publico')
-      .upsert({ id: ID_MAPA, mapa_ativo_id: useStore.getState().mapa.mapaAtivoId })
+      .upsert({ id: ID_MAPA, mapa_ativo_id: id })
       .then((resultado) => {
-        pendente = false;
+        if (id !== useStore.getState().mapa.mapaAtivoId) return resultado;
+        pendente = !!resultado?.error;
         // outra sessão de mestre (ou reconexão) pode ter escrito por cima enquanto este push
         // estava em voo — `aplicarLinha` só ignorava o PRÓPRIO eco, sem isso a troca alheia
         // ficava perdida até o próximo evento chegar por acaso. Last-write-wins de propósito
@@ -51,18 +55,30 @@ export function iniciarSyncMapaAtivo(): () => void {
         if (!resultado?.error) void refetchMapaAtivo();
         return resultado;
       });
+  };
+
+  const enviarQuandoPronto = () => {
+    const { mapaAtivoId, biblioteca } = useStore.getState().mapa;
+    const mapa = biblioteca.find((m) => m.id === mapaAtivoId);
+    if (mapa && (ehDataUrl(mapa.imagemUrl) || mapaAguardandoEnvio(mapa.id))) return;
+    executarComRetentativa('mapa-ativo-sync', ID_MAPA, push);
+  };
+  const pararConfirmacao = aoConfirmarMapa((id) => {
+    if (pendente && useStore.getState().mapa.mapaAtivoId === id) enviarQuandoPronto();
+  });
 
   const unsubscribeLocal = useStore.subscribe((state, prevState) => {
     if (aplicandoRemotoContagem > 0) return;
     if (state.mapa.mapaAtivoId === prevState.mapa.mapaAtivoId) return;
     pendente = true;
     marcarEmVoo('mapa-ativo-sync', ID_MAPA);
-    executarComRetentativa('mapa-ativo-sync', ID_MAPA, push);
+    enviarQuandoPronto();
   });
 
   // reenvia se ficou pendente de uma sessão anterior — singleton, chave sempre ID_MAPA.
   if (retomarPendenciasPersistidas('mapa-ativo-sync').length > 0) {
-    executarComRetentativa('mapa-ativo-sync', ID_MAPA, push);
+    pendente = true;
+    enviarQuandoPronto();
   }
 
   // busca inicial E refetch de reconexão — sem linha ainda é no-op.
@@ -89,6 +105,7 @@ export function iniciarSyncMapaAtivo(): () => void {
 
   return () => {
     unsubscribeLocal();
+    pararConfirmacao();
     desconectarCanal('mapa-ativo-sync');
     cliente.removeChannel(canal);
   };
