@@ -5,9 +5,10 @@ import { marcarRemocaoExplicita } from '../../multiplayer/remocaoExplicita';
 import { deletarR2, extrairMensagemErro, isUrlSupabaseStorage, uploadR2 } from '../../multiplayer/uploadR2';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
 import { useStore } from '../../state/store';
+import { QUANTIDADE_SLOTS_SOUNDPAD } from '../../state/soundpad';
 import type { SomSoundpad } from '../../state/types';
 
-const SLOTS = Array.from({ length: 12 }, (_, i) => i);
+const SLOTS = Array.from({ length: QUANTIDADE_SLOTS_SOUNDPAD }, (_, i) => i);
 
 interface ResultadoBusca {
   id: number;

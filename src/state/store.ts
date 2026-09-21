@@ -9,6 +9,7 @@ import { calcularExpiraSurto, indiceSurtoPendente, resolverSurto } from '../rule
 import { inserirNaIniciativa, ordenarIniciativa } from '../rules/teste';
 import { marcarLocalErro, marcarLocalOk } from '../lib/statusMesa';
 import { validarTiposEstado } from './validarImportacao';
+import { QUANTIDADE_SLOTS_SOUNDPAD } from './soundpad';
 import {
   COR_NPC_PADRAO,
   criarEstadoInicial,
@@ -275,7 +276,7 @@ interface Acoes {
   definirModoLoopMidia: (modoLoop: EstadoMidia['modoLoop']) => void;
   definirTagFaixaMidia: (id: string, tag: string) => void;
 
-  /** Grava o som no slot (0–5), sobrescrevendo o que estiver lá — é o "substituir" da UI. */
+  /** Grava o som no slot (0–11), sobrescrevendo o que estiver lá — é o "substituir" da UI. */
   definirSomSoundpad: (slot: number, nome: string, path: string, url: string) => string;
   removerSomSoundpad: (slot: number) => void;
   definirVolumeSoundpad: (volume: number) => void;
@@ -1698,6 +1699,7 @@ export const useStore = create<Store>()(
               url: f.url ?? '',
               ordem: typeof f.ordem === 'number' ? f.ordem : 0,
               criadoEm: f.criadoEm ?? new Date().toISOString(),
+              tag: f.tag,
             })),
             faixaAtualId: d.midia?.faixaAtualId ?? null,
             // nunca importa playback em curso — evita reviver "tocando: true" pra todo
@@ -1710,7 +1712,7 @@ export const useStore = create<Store>()(
           },
           soundpad: {
             sons: (d.soundpad?.sons ?? [])
-              .filter((x) => typeof x?.slot === 'number' && x.slot >= 0 && x.slot <= 5)
+              .filter((x) => Number.isInteger(x?.slot) && x.slot >= 0 && x.slot < QUANTIDADE_SLOTS_SOUNDPAD)
               .map((x) => ({
                 id: x.id ?? crypto.randomUUID(),
                 slot: x.slot,

@@ -39,6 +39,31 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
   const textar = (caminho: string, valor: unknown) => {
     if (valor !== undefined && typeof valor !== 'string') problemas.push(`"${caminho}" deveria ser texto`);
   };
+  const registro = (valor: unknown): valor is Record<string, unknown> =>
+    !!valor && typeof valor === 'object' && !Array.isArray(valor);
+  const visitarLista = (caminho: string, valor: unknown, visitar: (item: Record<string, unknown>, caminho: string) => void) => {
+    listarDeObjetos(caminho, valor);
+    if (Array.isArray(valor)) valor.forEach((item, i) => {
+      if (registro(item)) visitar(item, `${caminho}[${i}]`);
+    });
+  };
+
+  for (const campo of ['sessaoPrivada', 'sessaoPublica', 'midia', 'soundpad']) objetar(campo, dados[campo]);
+  if (registro(dados.sessaoPrivada)) {
+    for (const campo of ['eventos', 'lembretes']) {
+      visitarLista(`sessaoPrivada.${campo}`, dados.sessaoPrivada[campo], (item, caminho) => textar(`${caminho}.texto`, item.texto));
+    }
+    listar('sessaoPrivada.selecionadosIniciativa', dados.sessaoPrivada.selecionadosIniciativa);
+    objetar('sessaoPrivada.estatisticas', dados.sessaoPrivada.estatisticas);
+  }
+  for (const campo of ['pistas', 'rollsLog']) listarDeObjetos(campo, dados[campo]);
+  if (registro(dados.midia)) {
+    visitarLista('midia.faixas', dados.midia.faixas, (item, caminho) => {
+      for (const campo of ['nome', 'tag', 'path', 'url']) textar(`${caminho}.${campo}`, item[campo]);
+    });
+  }
+  if (registro(dados.soundpad)) listarDeObjetos('soundpad.sons', dados.soundpad.sons);
+  visitarLista('tabelas', dados.tabelas, (item, caminho) => listarDeObjetos(`${caminho}.entradas`, item.entradas));
 
   listar('fichas', dados.fichas);
   listar('npcs', dados.npcs);
@@ -80,7 +105,14 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     listarDeObjetos('mapa.tokens', mapa.tokens);
     // `biblioteca` só existe no formato atual — export legado (pré-biblioteca) não tem essa
     // chave, e `normalizarMapa` (store.ts) já sabe converter esse formato antigo.
-    listarDeObjetos('mapa.biblioteca', mapa.biblioteca);
+    const validarFow = (item: Record<string, unknown>, caminho: string) => {
+      objetar(`${caminho}.fow`, item.fow);
+      if (registro(item.fow)) {
+        for (const campo of ['vistas', 'visiveisAgora']) listarDeObjetos(`${caminho}.fow.${campo}`, item.fow[campo]);
+      }
+    };
+    validarFow(mapa, 'mapa');
+    visitarLista('mapa.biblioteca', mapa.biblioteca, validarFow);
   }
 
   return problemas;
