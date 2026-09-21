@@ -10,6 +10,7 @@ Painel de mestre do RPG "Estática" (investigação/horror, São Paulo distópic
 - [.claude/docs/arquitetura.md](.claude/docs/arquitetura.md) — stack e decisões fechadas.
 - [mesa-estatica-multiplayer-completo.md](mesa-estatica-multiplayer-completo.md) — spec do multiplayer (Supabase, RLS, Edge Functions); comentários no código citam suas seções (§11, Parte IV…).
 - [.claude/docs/storage-r2.md](.claude/docs/storage-r2.md) — guia operacional de mídia: Cloudflare R2 (egress), Freesound (soundpad), migração do site pro Cloudflare Pages.
+- [.claude/docs/infraestrutura.md](.claude/docs/infraestrutura.md) — **mapa das conexões externas** (GitHub, Cloudflare Pages/R2, os dois projetos Supabase, Freesound, Groq/OpenRouter, MCP): identificadores, tabelas/functions, onde cada secret vive e o que dá pra verificar de fora. Ponto de partida de qualquer auditoria.
 - [.claude/docs/mcp-servers.md](.claude/docs/mcp-servers.md) — setup dos MCP servers conectados (Supabase, Cloudflare, Context7) — ferramenta do Claude Code, não arquitetura do app.
 - [.claude/docs/deploy.md](.claude/docs/deploy.md) — **ler antes de rodar `supabase db push`/`functions deploy`/`secrets set`.** Frontend sobe sozinho no push pra `main`; migração/function não — exige comando manual contra o projeto certo (dev `mjzgkszckwcnbzrltrww` vs produção `ahhzgxcafoaodetwkyti`).
 - [ROADMAP.md](ROADMAP.md) — o que já foi feito e o que vem a seguir.

@@ -6,6 +6,8 @@ Painel de controle do mestre para o RPG **Estática** — ficha viva, motor de r
 
 O estado vive no navegador (localStorage). A sincronização com os jogadores usa Supabase e é **opcional**: sem as env vars, o app roda 100% local, sem multiplayer.
 
+Publicado em **https://estatica-stc.pages.dev** (Cloudflare Pages, deploy automático a cada push em `main`). O inventário completo do que está conectado fora do repositório — GitHub, Cloudflare Pages/R2, os dois projetos Supabase, Freesound, Groq/OpenRouter — está em [infraestrutura.md](.claude/docs/infraestrutura.md).
+
 ## Rodando numa máquina nova
 
 **Pré-requisitos**: [Node.js LTS](https://nodejs.org) (Windows: `winget install OpenJS.NodeJS.LTS`) e um navegador com WebGL.
@@ -52,6 +54,6 @@ A Sanidade da ficha ativa controla uma camada visual global: tier 0 limpo (>75%)
 
 ## Documentação
 
-[ROADMAP.md](ROADMAP.md) · [regras](.claude/docs/regras.md) (fonte da verdade) · [ficha](.claude/docs/ficha.md) · [arquitetura](.claude/docs/arquitetura.md) · [arte](.claude/docs/arte.md)
+[ROADMAP.md](ROADMAP.md) · [regras](.claude/docs/regras.md) (fonte da verdade) · [ficha](.claude/docs/ficha.md) · [arquitetura](.claude/docs/arquitetura.md) · [arte](.claude/docs/arte.md) · [infraestrutura](.claude/docs/infraestrutura.md) (o que está conectado fora do repo) · [deploy](.claude/docs/deploy.md)
 
 O checklist do dia da sessão está no [ROADMAP.md](ROADMAP.md).

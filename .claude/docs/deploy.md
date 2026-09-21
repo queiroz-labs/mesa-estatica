@@ -1,5 +1,8 @@
 # Deploy — o que sobe sozinho e o que precisa de pedido explícito
 
+> Inventário de tudo que está conectado (identificadores, secrets, o que dá pra verificar de
+> fora): [`infraestrutura.md`](infraestrutura.md). Este doc aqui é só o **procedimento**.
+
 Criado em 27/08, quando o ambiente de dev isolado (ROADMAP.md item 2, Parte C) separou de vez
 "testar" de "produção" — antes disso só existia um projeto Supabase, então a distinção deste
 doc não existia na prática.

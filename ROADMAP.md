@@ -11,7 +11,7 @@ Tudo abaixo está implementado, testado e em produção salvo indicação em con
 
 - **Ficha e regras**: ficha completa (`ficha.md`), motor em `src/rules/` puro e testado, indicadores mecânicos (Ferido, linha da Sanidade, Surto com perda ≥5, traumas), neuro-reguladores, dinheiro R$/P$ com câmbio, Kit de Investigação, export `.docx` + import via IA (sobrescreve por nome; via `.docx` automático por Edge Function/Groq+OpenRouter fallback — `.claude/docs/storage-r2.md` Parte 4 — ou manual copiar/colar).
 - **Dados**: 3D com colorsets por tipo de rolagem, fila de rolagens, fallback 2D sem WebGL, rolagem rápida em qualquer aba. Honesta por padrão; forçada só pela janela `#controle`.
-- **Mapa/combate**: upload comprimido, tokens arrastáveis com cristal 3D, grade configurável, régua de medição, AoE (círculo/quadrado), `CombatOverlay` com iniciativa, condições, glossário e drag-and-drop. **Biblioteca de mapas** (06/09): mestre sobe vários mapas e escolhe qual está ativo a qualquer momento — grid e FoW são lembrados POR MAPA (`MapaBiblioteca`, migração `0039_biblioteca_mapas.sql`), tokens continuam globais. `npm test`/`tsc`/`build`/lint verdes; **migração ainda não rodada contra dev/produção** (`.claude/docs/deploy.md`) nem testada no navegador de verdade (ambiente de dev local está atrás do gate de vínculo de mestre, sem o token à mão nesta sessão) — próximo passo antes de considerar o item fechado.
+- **Mapa/combate**: upload comprimido, tokens arrastáveis com cristal 3D, grade configurável, régua de medição, AoE (círculo/quadrado), `CombatOverlay` com iniciativa, condições, glossário e drag-and-drop. **Biblioteca de mapas** (06/09): mestre sobe vários mapas e escolhe qual está ativo a qualquer momento — grid e FoW são lembrados POR MAPA (`MapaBiblioteca`, migração `0039_biblioteca_mapas.sql`), tokens continuam globais. Migração `0039` **aplicada em produção** e `reset-mesa` redeployada (versão 4) em 06/09 — conferido em 07/09 por `npx supabase migration list --linked`: 0001–0039 todas com `local == remote`. *(Esta linha afirmou o contrário até 07/09, o que quase levou a rodar de novo uma migração destrutiva e não repetível — ver o bloco "Antes do dia" no checklist.)* **Falta testar no navegador de verdade**: o ambiente de dev local está atrás do gate de vínculo de mestre, e é isso que separa o item de estar fechado. O QA de 07/09 (`.claude/docs/QA-2026-09-07.md`) achou por simulação a corrida entre `mapa_publico` e `mapas_biblioteca` ao adicionar mapa (FK da 0039 rejeitava, jogador ficava no mapa anterior) — corrigida e commitada em 20/09 (`mapaAtivoSync` espera a confirmação da biblioteca), junto com as outras quatro correções do QA (reset com falha parcial, 12 slots e tags no backup, validação de coleções no import).
 - **Sessão**: dashboard público/privado, gauges de Ruído Narrativo/Ameaça com reflexo visual site-wide, ruído de Sanidade por tiers, log narrativo + `rollsLog` separados com visibilidade, aba Pistas (GM-only), jukebox sincronizado.
 - **Multiplayer (Supabase)**: Fases A e B em produção (tokens; fichas com dono real via Anonymous Auth + RLS). App do jogador (`jogador.html`) com paridade: ficha própria editável, roladores, mapa, combate read-only, log, mídia. Além das fases A-D originais, já em produção: FoW, AoE, régua, ping, soundpad, rolagem ao vivo transmitida — ver `mesa-estatica-multiplayer-completo.md` §11 (parcialmente desatualizado quanto a isso, tratar como histórico de design, não checklist do estado atual).
 - **Fase C** (Edge Function `resolver-rolagem`) construída mas **não ligada** no caminho do mestre. **Fase D** atrás da flag `VITE_FASE_D_ROLAGEM_REMOTA` (**off por padrão**) — falta teste com 2 aparelhos físicos antes de ativar.
@@ -38,9 +38,13 @@ Cada uma custou um bug real em produção ou ao vivo numa sessão.
 - **HMR longo corrompe o React**: "Invalid hook call" numa aba antiga depois de editar hook não é bug — abrir aba nova.
 - **Reconexão precisa rebuscar, não só reassinar.** O Realtime não reenvia evento perdido durante uma queda de canal — sem um refetch explícito na transição erro→`SUBSCRIBED` (`assinarStatusCanalComRefetch` em `statusMesa.ts`), quem cai e volta fica com dado desatualizado até um reload manual. Todo módulo de sync novo com tabela própria precisa ligar isso (24/08).
 
-### Pendência conhecida — reconexão nos módulos de mídia/log (24/08)
+### ~~Pendência conhecida — reconexão nos módulos de mídia/log (24/08)~~ — fechada em 07/09
 
-`assinarStatusCanalComRefetch` (ver invariante acima) foi ligado nos módulos combat-críticos (fichas, npcs, iniciativa, sessão pública, tokens, FoW, mapa) e nos 6 hooks de hidratação do jogador — não nos módulos de baixa prioridade (`midiaFaixasSync`, `soundpadSync`, `midiaEstadoSync`, `logRollsSync`): autocorrigem no próximo evento (trilha/efeito/log não são bloqueantes pra jogar), decisão consciente de escopo, não esquecimento. Retomar se sobrar tempo antes do 29/08.
+`assinarStatusCanalComRefetch` (ver invariante acima) estava ligado só nos módulos combat-críticos e nos 6 hooks de hidratação do jogador; `midiaFaixasSync`, `soundpadSync`, `midiaEstadoSync` e `logRollsSync` ficaram de fora por escopo. Agora os quatro rebuscam ao reconectar, e o lado do mestre deixa de depender de um F5 pra recuperar trilha, efeito e log depois de uma queda de canal (o jogador já rebuscava).
+
+Dois cuidados que o diff sozinho não explica: em `logRollsSync` a rebusca é **merge por id**, não substituição — concatenar duplicaria o log inteiro na tela e substituir apagaria a entrada anotada durante a queda; e em `soundpadSync` o `ultimoDisparo` continua de fora da rebusca, senão reconectar soltaria um efeito antigo na mesa no meio da cena. Ambos têm teste.
+
+`reguasSync`, `aoeSync`, `pingSync` e `rolagemAoVivoSync` seguem sem rebusca de propósito — broadcast de dado descartável, atrasar gesto por reconexão é ruído.
 
 ### Pendência conhecida — push de ficha inteira não faz merge (29/08)
 
@@ -137,6 +141,20 @@ Egress bateu 126% do limite free — fundo de mapa, foto de NPC e foto de ficha 
 Três rodadas: (1) corrida upload-vs-sync mandava base64 de foto/mapa pro Realtime, `iniciativaSync` sem debounce/diff, log sem limite de histórico, hooks do jogador sem status de canal; (2) Surto ativo não expirava certo ao trocar cena/combate (`expiraEm` media rodada OU cena dependendo do modo, mas a checagem usava o modo ATUAL em vez do modo de criação — Surto sumia ao encerrar combate e reaparecia ao reiniciar); (3) varredura da área de combate: tooltip de iniciativa sem os números reais (e `d20`/`agilidade` se perdiam no sync, migração `0033`), o mesmo bug do Surto duplicado inline em 3 componentes, PV do jogador sem cor por gravidade, "Aguardando" nunca desligava sozinho, AoE rotulando quadrado como "raio". Detalhe em `git log`.
 
 ## Checklist do dia da sessão
+
+### Antes do dia — técnico
+
+O CI sobe **só o frontend** no push pra `main`. Migração e Edge Function exigem comando manual (`.claude/docs/deploy.md`), e é aí que mora o modo de falha silencioso: o frontend novo vai pro ar esperando um schema que ninguém aplicou. Conferir no banco, não no que este arquivo diz — a linha da biblioteca de mapas afirmou "migração não rodada" de 06/09 a 07/09 enquanto ela já estava aplicada.
+
+- [ ] `npx supabase migration list --linked` contra produção: toda migração local com `remote` correspondente
+- [ ] `git log --oneline -- supabase/functions/` — algum commit recente sem `functions deploy` correspondente? Cruzar com `npx supabase functions list --project-ref ahhzgxcafoaodetwkyti` (compara `updated_at` com a data do commit)
+- [ ] Token de mestre confirmado **antes** da mesa (sem ele, `is_gm()` falha e "sessão limpa" para de apagar no servidor)
+- [ ] `VITE_FASE_D_ROLAGEM_REMOTA` continua desligada — falta teste com dois aparelhos físicos
+- [ ] `reset-mesa` **versão 5** em produção — código commitado em 20/09 e deployado só no dev (smoke test: 401 no token errado, function sobe com `limpeza.ts`). Produção exige à mão: `npx supabase functions deploy reset-mesa --project-ref ahhzgxcafoaodetwkyti --use-api`, conferir com `functions list`. Sem isso o cliente novo continua funcionando (a v4 também responde `ok:true`), só não detecta limpeza parcial.
+- [ ] Um "sessão limpa" **real** contra o dev antes de confiar no de produção — o reset novo só foi validado por teste simulado e smoke test, nunca executado de ponta a ponta.
+- [ ] Link da CLI (`supabase/.temp/project-ref`) está no **dev** desde 20/09, ao contrário do que `deploy.md` manda — `migration list --linked` mostra o dev, não produção. Relinkar ou passar `--project-ref` explícito sempre.
+
+### No dia
 
 - [ ] `npm run build` + `npm run preview` funcionando (e o site publicado abrindo)
 - [ ] Export JSON de backup salvo fora do navegador

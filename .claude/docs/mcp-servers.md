@@ -2,7 +2,8 @@
 
 > Guia sobre ferramenta do Claude Code, não sobre a arquitetura do app — diferente de
 > `storage-r2.md` (esse é sobre mídia). `.mcp.json` (repo root) já declara os três; falta só
-> autenticar cada um, uma vez, no seu navegador.
+> autenticar cada um, uma vez, no seu navegador. O que cada MCP consegue inspecionar de fato
+> (e o que fica fora de alcance) está resumido em [`infraestrutura.md`](infraestrutura.md).
 
 ## Por quê
 
@@ -27,9 +28,10 @@ autenticação nenhuma (rate limit mais baixo sem conta); só autentica se quise
 
 ## Passo 2 — Supabase: trocar o `project_ref` do placeholder
 
-O `.mcp.json` já vem com `read_only=true` (decisão deliberada — é o banco de uma mesa de RPG
-real, escrita acidental por engano não é risco que vale correr por padrão) e
-`project_ref=SEU_PROJECT_REF`, que precisa virar o ref real do projeto:
+**Já feito no `.mcp.json` versionado** — hoje ele traz `read_only=true` (decisão deliberada — é
+o banco de uma mesa de RPG real, escrita acidental por engano não é risco que vale correr por
+padrão) e `project_ref=ahhzgxcafoaodetwkyti` (produção). O passo abaixo fica registrado pra quem
+for apontar pra outro projeto:
 
 1. Dashboard do Supabase → seu projeto → *Settings* → *General* → **Reference ID** (também
    aparece na própria URL do dashboard: `supabase.com/dashboard/project/<ref>`).
