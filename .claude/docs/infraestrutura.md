@@ -18,7 +18,7 @@
 |---|---|---|---|
 | GitHub | `queiroz-labs/mesa-estatica` (origin HTTPS, branch `main`) | código, histórico, secrets do CI | `git remote -v`, `gh repo view` |
 | GitHub Actions | `.github/workflows/deploy.yml` | lint + build + test + deploy a cada push em `main` | `gh run list`, `gh workflow view` |
-| GitHub Actions | `.github/workflows/keepalive.yml` | ping REST + Auth nos dois Supabase a cada 3 dias (free pausa com 7 sem requisição; ping não acorda pausado — restaurar via dashboard ou `POST /v1/projects/{ref}/restore`) | `gh run list --workflow keepalive.yml` |
+| GitHub Actions | `.github/workflows/keepalive.yml` | todo dia chama a RPC `keepalive()` (migração 0040, escreve em `keepalive_log`) + GET no Auth dos dois Supabase. GET no REST sozinho não contava como "atividade suficiente" (dev recebeu aviso e foi pausado em 09/2026). Ping não acorda projeto pausado — restaurar pelo dashboard ou `POST /v1/projects/{ref}/restore` | `gh run list --workflow keepalive.yml` |
 | Cloudflare Pages | projeto `estatica`, público em `https://estatica-stc.pages.dev` | hospeda o frontend (mestre e jogador) | abrir a URL; MCP `cloudflare`; dashboard |
 | Cloudflare R2 | bucket de produção (nome só existe nos secrets) + bucket de dev `estatica-dev` | áudio do soundpad (`sfx/`) e backup de sessão (`saves/`) | MCP `cloudflare`; Edge Function `listar-r2-objetos` |
 | Supabase **produção** | ref `ahhzgxcafoaodetwkyti` | banco + RLS + Realtime + Storage + Edge Functions da mesa real | MCP `supabase` (read-only), CLI `supabase` |
@@ -87,14 +87,14 @@ Secrets, functions implantadas e dados são **independentes** entre os dois. A C
 
 ### 4.2 Banco
 
-- **39 migrações** em `supabase/migrations/` (`0001_…` a `0039_biblioteca_mapas.sql`), aditivas
+- **40 migrações** em `supabase/migrations/` (`0001_…` a `0040_keepalive.sql`), aditivas
   (`create table if not exists`, `create or replace function`) e **sem rollback automático**.
-- **24 tabelas**, todas em `public`: `characters_publico`, `characters_privado`, `npcs_publico`,
+- **25 tabelas**, todas em `public`: `characters_publico`, `characters_privado`, `npcs_publico`,
   `npcs_privado`, `sessao_publica`, `mapa_publico`, `mapas_biblioteca`, `fow_estado`,
   `iniciativa`, `rolls_publicas`, `rolls_log`, `log_publico`, `forced_queue`, `midia_estado`,
   `midia_faixas`, `soundpad_estado`, `soundpad_sons`, `tokens`, `mestres`, `mestre_config`,
   `mestre_tentativas`, `mestre_tentativas_global`, `token_tentativas_global`,
-  `vinculo_jogador_log`.
+  `vinculo_jogador_log`, `keepalive_log` (só o keepalive, RLS sem policy).
 - O par `_publico`/`_privado` é o mecanismo central de sigilo: **RLS é por linha, não por
   coluna**, então o que o jogador não pode ver mora em outra tabela, não em outra coluna
   (`mesa-estatica-multiplayer-completo.md` §3, §4).
