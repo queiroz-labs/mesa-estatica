@@ -1,13 +1,14 @@
 name: Supabase keepalive
 
-# O plano free pausa o projeto após 7 dias sem requisição. Um ping a cada 3 dias
-# (com folga pro atraso habitual do cron do GitHub) mantém dev e produção acordados.
+# O plano free pausa o projeto após 7 dias sem "atividade suficiente" — GET no REST não
+# bastou (dev avisado em 29/09 com ping a cada 3 dias). Agora o job chama a RPC keepalive()
+# (migração 0040), que escreve no Postgres, uma vez por dia. Exige a 0040 aplicada nos dois projetos.
 # Se um projeto já estiver pausado, o job falha — restaurar pelo dashboard ou pelo
 # Management API (POST /v1/projects/{ref}/restore); ping não acorda projeto pausado.
 
 on:
   schedule:
-    - cron: '0 12 */3 * *'
+    - cron: '0 12 * * *'
   workflow_dispatch:
 
 jobs:
@@ -31,9 +32,10 @@ jobs:
           KEY: ${{ secrets[matrix.key_secret] }}
         run: |
           set -u
-          rest=$(curl -s -o /dev/null -w '%{http_code}' \
+          rest=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-            "$URL/rest/v1/characters_publico?select=id&limit=1")
+            -H "Content-Type: application/json" -d '{}' \
+            "$URL/rest/v1/rpc/keepalive")
           auth=$(curl -s -o /dev/null -w '%{http_code}' \
             -H "apikey: $KEY" "$URL/auth/v1/settings")
           echo "${{ matrix.nome }}: rest=$rest auth=$auth"
