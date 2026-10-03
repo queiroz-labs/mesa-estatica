@@ -2,13 +2,15 @@ name: Supabase keepalive
 
 # O plano free pausa o projeto após 7 dias sem "atividade suficiente" — GET no REST não
 # bastou (dev avisado em 29/09 com ping a cada 3 dias). Agora o job chama a RPC keepalive()
-# (migração 0040), que escreve no Postgres, uma vez por dia. Exige a 0040 aplicada nos dois projetos.
+# (migração 0040), que escreve no Postgres. 1x/dia ainda gerou aviso (02/10) — doc do Supabase pede
+# "alguns requests ao banco por dia", então roda a cada 4h com 3 chamadas + 1 leitura. Repo público:
+# minutos de Actions grátis. Exige a 0040 aplicada nos dois projetos.
 # Se um projeto já estiver pausado, o job falha — restaurar pelo dashboard ou pelo
 # Management API (POST /v1/projects/{ref}/restore); ping não acorda projeto pausado.
 
 on:
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '17 */4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -32,10 +34,19 @@ jobs:
           KEY: ${{ secrets[matrix.key_secret] }}
         run: |
           set -u
-          rest=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+          rest=200
+          for i in 1 2 3; do
+            c=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              -H "Content-Type: application/json" -d '{}' \
+              "$URL/rest/v1/rpc/keepalive")
+            [ "$c" = "200" ] || rest=$c
+            sleep 5
+          done
+          leitura=$(curl -s -o /dev/null -w '%{http_code}' \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-            -H "Content-Type: application/json" -d '{}' \
-            "$URL/rest/v1/rpc/keepalive")
+            "$URL/rest/v1/characters_publico?select=id&limit=1")
+          [ "$leitura" = "200" ] || rest=$leitura
           auth=$(curl -s -o /dev/null -w '%{http_code}' \
             -H "apikey: $KEY" "$URL/auth/v1/settings")
           echo "${{ matrix.nome }}: rest=$rest auth=$auth"
