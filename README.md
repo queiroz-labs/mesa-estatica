@@ -44,6 +44,14 @@ inicia o loop contínuo. Tocar, pausar, parar ou ajustar a ambiência não reduz
 O soundpad continua disparando efeitos pontuais. Os jogadores usam **habilitar áudio** uma vez
 por página quando o navegador pedir; **mudo** silencia os três canais só para quem clicou.
 
+## Resultados dos dados
+
+Mestre e jogador veem o dado, o modificador e o total separados. Em **Trauma**, primeiro
+vem o teste de Vontade contra DT 12; só uma falha oferece perder 1d4 de Sanidade diretamente
+ou interpretar a Resposta até o fim da cena e ganhar 1 Determinação (máximo 2).
+Em **Sanidade**, o teste e a perda não são somados; o mestre confirma a perda.
+Em **Surto**, os dois d20 são opções da tabela, e números iguais tornam o efeito obrigatório.
+
 ## Transferindo o estado da mesa
 
 O estado **não** viaja com o git: exporte pelo botão **exportar** (JSON), leve o arquivo, importe na máquina nova. Faça isso antes de cada sessão — confie no papel, não na nuvem.

@@ -68,9 +68,12 @@ export default function ImportarPersonagemBotao() {
   const [resultado, setResultado] = useState<string | null>(null);
 
   const copiarPrompt = async () => {
-    await navigator.clipboard.writeText(montarPrompt());
-    setStatus('copiado');
-    setTimeout(() => setStatus('aberto'), 1500);
+    setErro(null);
+    try {
+      await navigator.clipboard.writeText(montarPrompt());
+      setStatus('copiado');
+      setTimeout(() => setStatus((atual) => atual === 'copiado' ? 'aberto' : atual), 1500);
+    } catch { setErro('cópia bloqueada pelo navegador — permita copiar e tente novamente.'); }
   };
 
   const aplicarResultados = (resultados: ResultadoImportacao[]) => {
@@ -110,13 +113,12 @@ export default function ImportarPersonagemBotao() {
     const arquivo = e.target.files?.[0];
     e.target.value = '';
     if (!arquivo) return;
-    const conteudo = await arquivo.text();
-    const { resultados, erroGeral } = importarFichasDeJSON(conteudo, basePV);
-    if (erroGeral) {
-      setErro(erroGeral);
-      return;
-    }
-    aplicarResultados(resultados);
+    try {
+      const conteudo = await arquivo.text();
+      const { resultados, erroGeral } = importarFichasDeJSON(conteudo, basePV);
+      if (erroGeral) { setErro(erroGeral); return; }
+      aplicarResultados(resultados);
+    } catch { setErro('não consegui ler esse arquivo — selecione o JSON novamente ou cole o conteúdo no campo de texto.'); }
   };
 
   const importarDeDocx = async (e: React.ChangeEvent<HTMLInputElement>) => {

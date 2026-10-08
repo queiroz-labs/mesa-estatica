@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { consultarIsGm } from '../../multiplayer/auth';
 import { buscarOwnerToken, montarLinkJogador, regenerarOwnerToken } from '../../multiplayer/links';
 
@@ -12,7 +12,7 @@ interface Props {
  *  mestre — os dois casos pareciam idênticos (mesmo aviso "multiplayer não configurado"),
  *  o que mascarava o caso real mais comum: vínculo de mestre expirado/nunca feito nesta aba,
  *  não a ficha ainda não ter sincronizado. `consultarIsGm()` distingue os dois na hora do erro. */
-type Status = 'idle' | 'carregando' | 'copiado' | 'erro-vinculo' | 'erro-config';
+type Status = 'idle' | 'carregando' | 'copiado' | 'erro-vinculo' | 'erro-config' | 'erro-rede' | 'erro-copia';
 
 /**
  * Controles GM-only pro link do jogador (mesa-estatica-multiplayer-completo.md Parte V §4):
@@ -21,10 +21,28 @@ type Status = 'idle' | 'carregando' | 'copiado' | 'erro-vinculo' | 'erro-config'
  */
 export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
   const [status, setStatus] = useState<Status>('idle');
+  const [linkManual, setLinkManual] = useState<string | null>(null);
+  const ocupadoRef = useRef(false);
+  const prazoRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(prazoRef.current), []);
 
   const avisar = (novo: Status) => {
+    clearTimeout(prazoRef.current);
     setStatus(novo);
-    if (novo !== 'idle') setTimeout(() => setStatus('idle'), 1800);
+    if (novo !== 'idle' && novo !== 'carregando' && novo !== 'erro-copia') prazoRef.current = setTimeout(() => setStatus('idle'), 1800);
+  };
+
+  const copiarToken = async (token: string) => {
+    const link = montarLinkJogador(token);
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkManual(null);
+      avisar('copiado');
+    } catch {
+      // Regenerar já invalidou o link anterior. Preserve o novo para copiar manualmente.
+      setLinkManual(link);
+      avisar('erro-copia');
+    }
   };
 
   const avisarFalha = async () => {
@@ -33,21 +51,29 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
   };
 
   const copiar = async () => {
-    setStatus('carregando');
-    const token = await buscarOwnerToken(fichaId);
-    if (!token) return avisarFalha();
-    await navigator.clipboard.writeText(montarLinkJogador(token));
-    avisar('copiado');
+    if (ocupadoRef.current) return;
+    ocupadoRef.current = true;
+    avisar('carregando');
+    try {
+      const token = await buscarOwnerToken(fichaId);
+      if (!token) { await avisarFalha(); return; }
+      await copiarToken(token);
+    } catch { avisar('erro-rede'); }
+    finally { ocupadoRef.current = false; }
   };
 
   const regenerar = async () => {
+    if (ocupadoRef.current) return;
     const ok = window.confirm(`regenerar o link de "${fichaNome || 'sem nome'}"? o link antigo para de funcionar.`);
     if (!ok) return;
-    setStatus('carregando');
-    const token = await regenerarOwnerToken(fichaId);
-    if (!token) return avisarFalha();
-    await navigator.clipboard.writeText(montarLinkJogador(token));
-    avisar('copiado');
+    ocupadoRef.current = true;
+    avisar('carregando');
+    try {
+      const token = await regenerarOwnerToken(fichaId);
+      if (!token) { await avisarFalha(); return; }
+      await copiarToken(token);
+    } catch { avisar('erro-rede'); }
+    finally { ocupadoRef.current = false; }
   };
 
   const titulo =
@@ -57,7 +83,11 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
         ? 'sessão não vinculada como mestre — clique no indicador "mestre" no topo, cole o token e tente de novo'
         : status === 'erro-config'
           ? 'multiplayer não configurado nesta máquina, ou a ficha ainda não sincronizou — espere alguns segundos e tente de novo'
-          : 'copiar link do jogador';
+          : status === 'erro-rede'
+            ? 'não consegui consultar o link — confira a conexão e tente novamente'
+            : status === 'erro-copia'
+              ? 'cópia bloqueada pelo navegador — copie o link mostrado abaixo'
+              : 'copiar link do jogador';
 
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -65,8 +95,15 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
         className="icone-botao"
         role="button"
         tabIndex={0}
+        aria-disabled={status === 'carregando'}
         title={titulo}
         onClick={(e) => {
+          e.stopPropagation();
+          void copiar();
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
           e.stopPropagation();
           void copiar();
         }}
@@ -80,8 +117,15 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
         className="icone-botao"
         role="button"
         tabIndex={0}
+        aria-disabled={status === 'carregando'}
         title="regenerar link (invalida o antigo)"
         onClick={(e) => {
+          e.stopPropagation();
+          void regenerar();
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
           e.stopPropagation();
           void regenerar();
         }}
@@ -109,6 +153,10 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
           link copiado
         </span>
       )}
+      {linkManual && <span role="status" className="mono" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 20, padding: '0.4rem', width: 300, background: 'var(--concrete-0)', border: '1px solid var(--ruido-dim)', fontSize: 11 }}>
+        cópia bloqueada — selecione e copie este link:
+        <input readOnly value={linkManual} aria-label="link do jogador para copiar manualmente" onFocus={(e) => e.currentTarget.select()} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ width: '100%', fontSize: 11 }} />
+      </span>}
     </span>
   );
 }

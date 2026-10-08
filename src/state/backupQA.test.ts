@@ -3,6 +3,23 @@ import { criarEstadoInicial } from './factories';
 import { useStore } from './store';
 
 beforeEach(() => { useStore.setState(criarEstadoInicial()); });
+it.each([
+  ['texto', 123], ['ligadoA', {}], ['status', 'desconhecido'],
+])('pista com %s inválido é recusada antes de substituir a mesa', (campo, valor) => {
+  useStore.getState().adicionarPista();
+  const antes = useStore.getState().exportarJSON();
+  const dados = JSON.parse(antes);
+  dados.pistas[0][campo as string] = valor;
+  expect(() => useStore.getState().importarJSON(JSON.stringify(dados))).toThrow(`pistas[0].${campo}`);
+  expect(useStore.getState().exportarJSON()).toBe(antes);
+});
+it('pistas válidas continuam preservadas ao restaurar o próprio backup', () => {
+  const id = useStore.getState().adicionarPista();
+  useStore.getState().atualizarPista(id, { texto: 'bilhete molhado', ligadoA: 'sala', status: 'descoberta' });
+  const pistas = useStore.getState().pistas;
+  useStore.getState().importarJSON(useStore.getState().exportarJSON());
+  expect(useStore.getState().pistas).toEqual(pistas);
+});
 it('restaura todos os 12 sons com posições e URLs intactas', () => {
   const sons = Array.from({ length: 12 }, (_, slot) => ({ id: `som-${slot}`, slot, nome: `som ${slot}`, path: 'sfx/test.mp3', url: 'https://example.test/test.mp3' }));
   useStore.setState((s) => ({ soundpad: { ...s.soundpad, sons } }));

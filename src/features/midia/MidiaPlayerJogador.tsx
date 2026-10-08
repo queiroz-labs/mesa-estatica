@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { fadeVolume } from '../../lib/audioFade';
-import { calcularPosicaoEsperada, precisaResincronizar } from '../../multiplayer/posicaoMidia';
+import { posicionarMidia } from '../../lib/midiaPlayback';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
 import { useStore } from '../../state/store';
 import { habilitarAudioJogador, useAudioJogadorStore } from '../../state/audioJogadorStore';
@@ -46,29 +46,46 @@ export default function MidiaPlayerJogador() {
   };
 
   const fadeTokenRef = useRef(0);
+  const tentativaRef = useRef(0);
   const prevFaixaIdRef = useRef<string | null>(null);
   const prevTocandoRef = useRef(false);
   const efeitoTocandoRef = useRef(efeitoTocando);
   efeitoTocandoRef.current = efeitoTocando;
 
   const faixaAtual = midia.faixas.find((f) => f.id === midia.faixaAtualId) ?? null;
+  const url = faixaAtual?.url;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    const tentativa = tentativaRef;
+    const fade = fadeTokenRef;
+    return () => {
+      tentativa.current++;
+      fade.current++;
+      audio?.pause();
+    };
+  }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    const tentativa = ++tentativaRef.current;
+    fadeTokenRef.current++;
 
-    if (audio.src !== faixaAtual?.url) audio.src = faixaAtual?.url ?? '';
-    if (!faixaAtual) return;
-
-    const esperado = calcularPosicaoEsperada(midia);
-    if (precisaResincronizar(audio.currentTime, esperado)) audio.currentTime = esperado;
+    if (audio.getAttribute('src') !== (url ?? null)) {
+      audio.pause();
+      if (url) audio.src = url;
+      else { audio.removeAttribute('src'); audio.load(); }
+    }
+    if (!url) { audio.pause(); return; }
+    posicionarMidia(audio, midia);
 
     // fade só entra numa troca de faixa/início/fim de verdade — não num resync puro de posição.
     const trocou = prevFaixaIdRef.current !== midia.faixaAtualId || prevTocandoRef.current !== midia.tocando;
     prevFaixaIdRef.current = midia.faixaAtualId;
     prevTocandoRef.current = midia.tocando;
 
-    if (!desbloqueado) return; // sem gesto do usuário ainda — só prepara, não toca
+    if (!desbloqueado) { audio.pause(); return; }
 
     const volumeAlvo = midia.volume * (efeitoTocandoRef.current ? FATOR_DUCK : 1);
     if (midia.tocando) {
@@ -80,19 +97,21 @@ export default function MidiaPlayerJogador() {
         audio
           .play()
           .then(() => {
-            if (trocou) fadeVolume(audio, volumeAlvo, FADE_TROCA_MS, fadeTokenRef);
+            if (tentativa !== tentativaRef.current) return;
+            fadeVolume(audio, useStore.getState().midia.volume * (efeitoTocandoRef.current ? FATOR_DUCK : 1), trocou ? FADE_TROCA_MS : 0, fadeTokenRef);
           })
           .catch((erro) => {
+            if (tentativa !== tentativaRef.current) return;
             if (erro?.name === 'NotAllowedError') desbloquearFalhou();
           });
-      }
+      } else fadeVolume(audio, volumeAlvo, trocou ? FADE_TROCA_MS : 0, fadeTokenRef);
     } else if (trocou) {
       fadeVolume(audio, 0, FADE_TROCA_MS, fadeTokenRef, () => audio.pause());
     } else {
       audio.pause();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [midia.faixaAtualId, midia.tocando, midia.atualizadoEm, desbloqueado]);
+  }, [url, midia.faixaAtualId, midia.tocando, midia.posicaoSegundos, midia.atualizadoEm, desbloqueado]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -110,15 +129,20 @@ export default function MidiaPlayerJogador() {
     habilitarAudioJogador();
     const audio = audioRef.current;
     if (audio && midia.tocando) {
-      audio.play().catch((erro) => {
-        if (erro?.name === 'NotAllowedError') desbloquearFalhou();
+      const tentativa = ++tentativaRef.current;
+      fadeTokenRef.current++;
+      audio.play().then(() => {
+        if (tentativa !== tentativaRef.current) return;
+        fadeVolume(audio, useStore.getState().midia.volume * (efeitoTocandoRef.current ? FATOR_DUCK : 1), FADE_TROCA_MS, fadeTokenRef);
+      }, (erro) => {
+        if (tentativa === tentativaRef.current && erro?.name === 'NotAllowedError') desbloquearFalhou();
       });
     }
   };
 
   return (
     <>
-      <audio ref={audioRef} />
+      <audio ref={audioRef} onLoadedMetadata={(e) => posicionarMidia(e.currentTarget, useStore.getState().midia)} />
       <div
         className="mono"
         style={{

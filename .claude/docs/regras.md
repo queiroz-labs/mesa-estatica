@@ -68,7 +68,7 @@ Começa cada sessão com **1**; máximo acumulável **2**.
 
 ## Sanidade
 
-Teste de Sanidade: diante de gatilho, teste de **Vontade** vs. DT da cena. **Falha: perde o valor inteiro. Sucesso: perde metade.** No app, o rolador mostra só o resultado bruto (d20 + dado de perda) — quem compara o total com a DT e decide sucesso/falha é o mestre, na hora, não o app automaticamente.
+Teste de Sanidade: diante de gatilho, teste de **Vontade** vs. DT da cena. **Falha: perde o valor inteiro. Sucesso: perde metade.** No app, o resultado separa **d20 + Vontade** do **dado de perda**; eles não são somados. O mestre compara o teste com a DT da cena e confirma a perda na ficha. As regras gerais de 1 e 20 naturais continuam valendo: 1 é falha com complicação, 20 é sucesso com efeito extra. O jogador vê quanto perde em cada caso e aguarda a confirmação; o rolador do jogador não desconta automaticamente.
 
 | Gatilho | Perda |
 |---|---|

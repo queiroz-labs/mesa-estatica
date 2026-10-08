@@ -3,6 +3,8 @@ import type { ColorsetId } from '../../dice/colorsets';
 import type { TipoRolagemForcada } from '../../dice/registroForcados';
 import { formatarLogRolagem, type GrupoDados, type RollGroupResult, type RollTermo } from '../../dice/useDiceBox';
 import { useStore } from '../../state/store';
+import ResultadoLivre from './ResultadoLivre';
+import { criarResultadoLivreDetalhado, formulaLivreComAjuste, type ResultadoLivreDetalhado } from './resultadoLivreApresentacao';
 
 const TODAS_AS_FACES = [4, 6, 8, 10, 12, 20, 100];
 
@@ -41,7 +43,7 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
   const [bonus, setBonus] = useState(0);
   const [privado, setPrivado] = useState(true);
   const [termos, setTermos] = useState<Termo[]>([termoVazio()]);
-  const [grupos, setGrupos] = useState<RollGroupResult[] | null>(null);
+  const [resultado, setResultado] = useState<ResultadoLivreDetalhado | null>(null);
   const [rolando, setRolando] = useState(false);
 
   const ficha = fichas.find((f) => f.id === fichaId) ?? null;
@@ -61,13 +63,12 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
 
   const rolarCombinado = () => {
     setRolando(true);
-    setGrupos(null);
+    setResultado(null);
     const notacao: RollTermo[] = termos.map((t) => ({ sides: t.faces, qty: t.quantidade }));
     // sem isso, um valor forçado amarrado a este PC/NPC específico (janela de controle) nunca
     // é consumido aqui — fica preso na fila e pode disparar depois, numa rolagem não relacionada.
     const personagemId = modo === 'npc' ? (npc?.id ?? null) : modo === 'pc' ? (ficha?.id ?? null) : null;
     rolar(notacao, (resultados) => {
-      setGrupos(resultados);
       setRolando(false);
 
       const total = resultados.reduce((soma, g) => soma + g.value, 0);
@@ -82,6 +83,7 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
       // que mantém "Rolagem livre" como já era).
       const quemLog = modo === 'nenhum' ? 'Mestre' : origem;
       const bonusRolagem = modo === 'npc' ? bonus : undefined;
+      setResultado(criarResultadoLivreDetalhado(quemLog, resultados, bonusRolagem ?? 0));
       const gruposLog: GrupoDados[] = resultados.map((g) => ({ notacao: `${g.qty}d${g.sides}`, resultados: g.rolls.map((r) => r.value) }));
       registrarLog(
         'rolagem-livre',
@@ -95,7 +97,7 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
         registrarRoll({
           origem,
           personagemId: npc.id,
-          formula: `${notacaoTexto}${bonus !== 0 ? `+${bonus}` : ''}`,
+          formula: formulaLivreComAjuste(notacaoTexto, bonus),
           total: totalComBonus,
           bruto: total,
           visibilidade,
@@ -122,7 +124,6 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
     }, undefined, personagemId, 'qualquer');
   };
 
-  const totalGeral = grupos?.reduce((soma, g) => soma + g.value, 0) ?? null;
   const notacaoTexto = termos.map((t) => `${t.quantidade}d${t.faces}`).join(' + ');
 
   return (
@@ -158,7 +159,7 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
             </select>
           </div>
           <div>
-            <label htmlFor="rl-bonus">Bônus</label>
+            <label htmlFor="rl-bonus">Ajuste (+ bônus / − penalidade)</label>
             <input
               id="rl-bonus"
               type="number"
@@ -229,18 +230,11 @@ export default function RolagemLivre({ ready, rolar }: RolagemLivreProps) {
             checked={privado}
             onChange={(e) => setPrivado(e.target.checked)}
           />
-          privado
+          só no app do mestre
         </label>
       </div>
 
-      {grupos && (
-        <div className="alerta-banner mono" style={{ marginTop: '0.75rem', borderColor: 'var(--rede)', color: 'var(--rede)' }}>
-          <span>
-            {grupos.map((g) => `${g.qty}d${g.sides} → ${g.value} [${g.rolls.map((r) => r.value).join(', ')}]`).join(' · ')}
-            {grupos.length > 1 && ` · total ${totalGeral}`}
-          </span>
-        </div>
-      )}
+      {resultado && <ResultadoLivre resultado={resultado} />}
     </section>
   );
 }

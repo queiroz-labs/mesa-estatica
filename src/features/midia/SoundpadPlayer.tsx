@@ -36,6 +36,16 @@ export default function SoundpadPlayer() {
 
   const sonsRef = useRef(useStore.getState().soundpad.sons);
   const volumeRef = useRef(useStore.getState().soundpad.volume);
+  useEffect(() => {
+    const audios = audiosPorSlot.current;
+    return () => {
+      for (const [slot, audio] of audios) {
+        audio.pause();
+        useSoundpadUiStore.getState().marcarParado(slot);
+      }
+      audios.clear();
+    };
+  }, []);
   useEffect(
     () =>
       useStore.subscribe((s) => {
@@ -79,6 +89,9 @@ export default function SoundpadPlayer() {
     audio.volume = volumeRef.current;
     audio.muted = useSoundpadUiStore.getState().mudo;
     const encerrar = () => {
+      // Repetir um slot pode rejeitar o play anterior por AbortError. Essa instância
+      // antiga não pode retirar a nova do mapa nem desfazer o duck da música.
+      if (audiosPorSlot.current.get(slot) !== audio) return;
       audiosPorSlot.current.delete(slot);
       useSoundpadUiStore.getState().marcarParado(slot);
     };

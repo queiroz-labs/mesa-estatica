@@ -167,7 +167,9 @@ function gravarEmVoo(itens: Set<string>): void {
  *  segura de chamar de novo no momento em que o push dispara de fato (mesma chave). */
 export function marcarEmVoo(modulo: string, chave: string): void {
   const itens = lerEmVoo();
-  itens.add(idDe(modulo, chave));
+  const id = idDe(modulo, chave);
+  if (itens.has(id)) return;
+  itens.add(id);
   gravarEmVoo(itens);
 }
 
@@ -217,12 +219,16 @@ export function executarComRetentativa(
   modulo: string,
   chave: string,
   executar: () => PromiseLike<{ error: unknown } | null | undefined>,
+  opcoes: { aguardandoConfirmacao?: () => boolean } = {},
 ): void {
   const tentar = (): void => {
     marcarEmVoo(modulo, chave);
     Promise.resolve(executar())
       .then((resultado) => {
-        desmarcarEmVoo(modulo, chave);
+        // Um envio antigo pode confirmar enquanto uma versão mais nova ainda aguarda
+        // throttle/rede. Não apaga a proteção de reload nem o retry dessa versão nova.
+        const aguardandoConfirmacao = opcoes.aguardandoConfirmacao?.() ?? false;
+        if (!aguardandoConfirmacao) desmarcarEmVoo(modulo, chave);
         if (resultado && resultado.error) {
           if (ehErroPermissaoNegada(resultado.error)) {
             tratarErroPermanente(modulo, resultado.error);
@@ -231,7 +237,7 @@ export function executarComRetentativa(
           }
           console.error(`[filaPendencias] ${modulo}:${chave} falhou, aguardando reconexão`, resultado.error);
           registrarPendencia(modulo, chave, tentar);
-        } else {
+        } else if (!aguardandoConfirmacao) {
           resolverPendencia(modulo, chave);
         }
       })

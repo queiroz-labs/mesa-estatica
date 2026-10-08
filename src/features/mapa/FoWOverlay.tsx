@@ -50,7 +50,14 @@ interface Props {
  *  - `rua`/`corp` tingem a CENA inteira (`fow.zonaAtual`), não a região desenhada — aparecem
  *    sempre que `fow` está ligado, não só durante `revelar`.
  */
-export default function FoWOverlay({ imgRenderRect, tamanho, containerRef, imgRef }: Props) {
+export default function FoWOverlay(props: Props) {
+  const mapaAtivoId = useStore((s) => s.mapa.mapaAtivoId);
+  // Ferramenta/modal pertencem ao mapa em que foram abertos. A troca cancela a interação,
+  // sem herdar "revelar" num mapa cuja névoa ainda está desligada.
+  return <FerramentasFoW key={mapaAtivoId ?? 'sem-mapa'} {...props} />;
+}
+
+function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props) {
   const mapaAtivo = useMapaAtivo();
   const adicionarRegiaoFoW = useStore((s) => s.adicionarRegiaoFoW);
   const cobrirAreaFoW = useStore((s) => s.cobrirAreaFoW);
@@ -65,6 +72,8 @@ export default function FoWOverlay({ imgRenderRect, tamanho, containerRef, imgRe
   const [modalApagarAberto, setModalApagarAberto] = useState(false);
   const desenhandoRef = useRef(false);
   const origemRef = useRef<Ponto | null>(null);
+
+  useEffect(() => () => definirRascunho(null), [definirRascunho]);
 
   useEffect(() => {
     if (!modalApagarAberto) return;

@@ -21,6 +21,8 @@ export interface EscolhaSurtoPendente {
   nomeFicha: string;
   entradaA: EntradaSurto;
   entradaB: EntradaSurto;
+  /** Mantém a escolha na mesma visibilidade da rolagem que a originou. Ausente = pública. */
+  visibilidade?: 'publica' | 'privada';
 }
 
 export interface SurtoAtivo {
@@ -169,6 +171,8 @@ export interface TokenMapa {
   tipo: 'pc' | 'npc';
   x: number; // 0-1 normalizado
   y: number; // 0-1 normalizado
+  /** Confirmação de posição gerada pelo servidor (0042). Ausente = backend legado. */
+  versaoPosicao?: number;
 }
 
 export type TipoLog =

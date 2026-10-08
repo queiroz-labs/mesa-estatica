@@ -20,8 +20,10 @@ export interface PedidoRolagemTeste {
 
 interface PedidoRolagemTesteState {
   pedido: PedidoRolagemTeste | null;
+  emExecucaoId: string | null;
   pedirRolagemTeste: (p: PedidoRolagemTeste) => void;
-  limparPedidoRolagemTeste: () => void;
+  iniciarPedidoRolagemTeste: (id: string) => boolean;
+  limparPedidoRolagemTeste: (id?: string) => void;
 }
 
 /**
@@ -33,8 +35,19 @@ interface PedidoRolagemTesteState {
  * `QuickRollOverlay.tsx`/`QuickRollOverlayJogador.tsx` (dono da bandeja física 3D), sem prop
  * drilling pelos componentes no meio do caminho.
  */
-export const usePedidoRolagemTesteStore = create<PedidoRolagemTesteState>((set) => ({
+export const usePedidoRolagemTesteStore = create<PedidoRolagemTesteState>((set, get) => ({
   pedido: null,
-  pedirRolagemTeste: (p) => set({ pedido: p }),
-  limparPedidoRolagemTeste: () => set({ pedido: null }),
+  emExecucaoId: null,
+  pedirRolagemTeste: (p) => set({ pedido: p, emExecucaoId: null }),
+  // O pedido permanece visível até o fim para bloquear novos cliques, mas pode
+  // ser executado só uma vez mesmo após rerender, eco da ficha ou StrictMode.
+  iniciarPedidoRolagemTeste: (id) => {
+    if (get().pedido?.id !== id || get().emExecucaoId === id) return false;
+    set({ emExecucaoId: id });
+    return true;
+  },
+  limparPedidoRolagemTeste: (id) => {
+    if (id !== undefined && get().pedido?.id !== id) return;
+    set({ pedido: null, emExecucaoId: null });
+  },
 }));

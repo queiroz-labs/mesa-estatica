@@ -123,12 +123,10 @@ export default function PlayerApp() {
       // idem — só o AoEOverlay.tsx (GM-only, fora deste bundle) escreve no aoeStore; aqui é
       // sempre leitura.
       pararAoE = iniciarSyncAoE();
-      // biblioteca de mapas + mapa ativo: só leitura na prática. O jogador nunca tem
-      // `BibliotecaMapas.tsx`/`GradeOverlay.tsx`/`FoWOverlay.tsx` (GM-only) no bundle, e a RLS
-      // (`is_gm()` no insert/update/delete) garante no servidor que nem vazar a anon key
-      // permite escrever no banco.
-      pararMapasBiblioteca = iniciarSyncMapasBiblioteca();
-      pararMapaAtivo = iniciarSyncMapaAtivo();
+      // Biblioteca/mapa ativo são somente leitura explícita: hidratação e filas antigas
+      // não podem gerar publicação GM-only no cliente do jogador.
+      pararMapasBiblioteca = iniciarSyncMapasBiblioteca({ somenteLeitura: true });
+      pararMapaAtivo = iniciarSyncMapaAtivo({ somenteLeitura: true });
       // simétrico: aqui é quem de fato PUBLICA (DadosTabJogador.tsx/QuickRollOverlayJogador.tsx
       // chamam rolagemAoVivoStore.definirAtual), o mestre só recebe.
       pararRolagemAoVivo = iniciarSyncRolagemAoVivo();

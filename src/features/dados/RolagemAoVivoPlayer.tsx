@@ -8,7 +8,7 @@ import { parseDanoArma } from '../../rules/teste';
 import { rolarTestePericiaFicha } from '../../rules/testePericia';
 import { usePedidoRolagemDanoStore, type PedidoRolagemDano } from '../../state/pedidoRolagemDanoStore';
 import { usePedidoRolagemTesteStore, type PedidoRolagemTeste } from '../../state/pedidoRolagemTesteStore';
-import { useRolagemAoVivoStore } from '../../state/rolagemAoVivoStore';
+import { avisarInicioRolagem, ehRolagemPropria, useRolagemAoVivoStore } from '../../state/rolagemAoVivoStore';
 import { useStore } from '../../state/store';
 import type { Ficha } from '../../state/types';
 
@@ -23,12 +23,8 @@ function agruparPorTermo(termos: RollTermo[], valores: number[]): GrupoDados[] {
   });
 }
 
-/** Tempo que "X está rolando…" fica visível — some assim que o dado assenta e o texto vira
- *  resultado (não precisa de graça própria, a transição já é o próprio `aoTerminar`).
- *  ~18s total (física ~2s + graça 16s) pra mesa toda ver o número — verificado ao vivo com 2
- *  clientes reais que a rolagem ao vivo chega corretamente (broadcast + recepção funcionam), mas
- *  10s de graça era curto demais pra alguém trocar de tela (mestre → jogador, ou entre dois
- *  jogadores) a tempo de notar antes de sumir. */
+/** Tempo para ler o resultado depois da física. Também limita um aviso de início
+ *  órfão, caso o autor caia antes de transmitir o resultado. */
 const GRACA_RESULTADO_MS = 16000;
 
 /**
@@ -62,7 +58,7 @@ interface Props {
 }
 
 export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
-  const { ready, rolando, modo2D, rolar, reproduzir } = useDiceBox('dice-ao-vivo', true, 45, ficha ? resolverRolagemJogador : undefined);
+  const { ready, rolando, modo2D, erro, falhaRolagem, rolar, reproduzir } = useDiceBox('dice-ao-vivo', true, 45, ficha ? resolverRolagemJogador : undefined);
   const basePV = useStore((s) => s.config.basePV);
   const registrarLog = useStore((s) => s.registrarLog);
   const registrarRoll = useStore((s) => s.registrarRoll);
@@ -70,6 +66,7 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
   const limparPedidoRolagemDano = usePedidoRolagemDanoStore((s) => s.limparPedidoRolagemDano);
   const pedidoTeste = usePedidoRolagemTesteStore((s) => s.pedido);
   const limparPedidoRolagemTeste = usePedidoRolagemTesteStore((s) => s.limparPedidoRolagemTeste);
+  const iniciando = useRolagemAoVivoStore((s) => s.iniciando);
 
   const graceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [visivel, setVisivel] = useState(false);
@@ -82,6 +79,19 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
     useRolagemAoVivoStore.getState().definirMostrando(v);
   };
 
+  useEffect(() => {
+    if (!iniciando || (!verProprias && ehRolagemPropria(iniciando.id))) return;
+    if (graceRef.current) clearTimeout(graceRef.current);
+    setRotulo({ cor: iniciando.cor, texto: `${iniciando.origem} está rolando…` });
+    marcarVisivel(true);
+    // Se o autor cair antes do resultado, o aviso não fica preso no header.
+    graceRef.current = setTimeout(() => {
+      if (useRolagemAoVivoStore.getState().iniciando?.id === iniciando.id) useRolagemAoVivoStore.getState().definirInicio(null);
+      marcarVisivel(false);
+    }, GRACA_RESULTADO_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iniciando?.id, verProprias]);
+
   useReproduzirRolagemAoVivo(reproduzir, ready, {
     aoIniciar: (r) => {
       if (graceRef.current) clearTimeout(graceRef.current);
@@ -92,7 +102,8 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
       // Surto: 2d20 comparados, não termos da notação — grupo único fixo em vez de `agruparPorTermo`.
       const grupos: GrupoDados[] = r.tipo === 'surto' ? [{ notacao: '2d20', resultados: r.valores }] : agruparPorTermo(r.termos, r.valores);
       const total = grupos.flatMap((g) => g.resultados).reduce((soma, v) => soma + v, 0) + (r.bonus ?? 0);
-      const texto = formatarHeaderRolagem({ quem: r.origem, grupos, bonus: r.bonus, total });
+      const tipoTexto = r.contexto === 'trauma' ? 'trauma' : r.contexto === 'livre' ? 'qualquer' : r.tipo;
+      const texto = formatarHeaderRolagem({ quem: r.origem, grupos, bonus: r.bonus, total, tipo: tipoTexto });
       setRotulo({ cor: r.cor, texto });
       graceRef.current = setTimeout(() => marcarVisivel(false), GRACA_RESULTADO_MS);
     },
@@ -104,20 +115,21 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
   // falta mostrar o resultado no PRÓPRIO header (o broadcast é auto-filtrado da reprodução por
   // `ehRolagemPropria`, de propósito — replay duplicaria a animação que já rodou aqui).
   const executarPedidoDano = (p: PedidoRolagemDano) => {
-    if (!ficha) return;
+    if (!ficha || p.fichaId !== ficha.id || !usePedidoRolagemDanoStore.getState().iniciarPedidoRolagemDano(p.id)) return;
     const arma = ficha.armas.find((a) => a.id === p.armaId);
     if (!arma) {
-      limparPedidoRolagemDano();
+      limparPedidoRolagemDano(p.id);
       return;
     }
+    const rolagemId = p.visibilidade === 'publica' ? avisarInicioRolagem(ficha.nome || 'jogador', ficha.corVisual, 'dano') : undefined;
     if (graceRef.current) clearTimeout(graceRef.current);
     setRotulo({ cor: ficha.corVisual, texto: `${ficha.nome || 'jogador'} está rolando…` });
     marcarVisivel(true);
     const finalizar = (valoresDados: number[], termos: RollTermo[]) => {
-      const r = rolarDanoArmaFicha(ficha, arma, termos, valoresDados, p.critico, registrarLog, registrarRoll, p.visibilidade);
+      const r = rolarDanoArmaFicha(ficha, arma, termos, valoresDados, p.critico, registrarLog, registrarRoll, p.visibilidade, rolagemId);
       setRotulo({ cor: ficha.corVisual, texto: `dano · ${arma.nome || 'arma'}: ${r.texto}` });
       graceRef.current = setTimeout(() => marcarVisivel(false), GRACA_RESULTADO_MS);
-      limparPedidoRolagemDano();
+      limparPedidoRolagemDano(p.id);
     };
     const parsed = parseDanoArma(arma.dano);
     if (!parsed) {
@@ -136,21 +148,22 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
   // Pedido de teste de perícia/ataque de arma da própria ficha — mesma ponte de
   // `executarPedidoDano` acima, mesma bandeja física.
   const executarPedidoTeste = (p: PedidoRolagemTeste) => {
-    if (!ficha) return;
+    if (!ficha || p.fichaId !== ficha.id || !usePedidoRolagemTesteStore.getState().iniciarPedidoRolagemTeste(p.id)) return;
     const pericia = PERICIAS.find((per) => per.id === p.periciaId);
     if (!pericia) {
-      limparPedidoRolagemTeste();
+      limparPedidoRolagemTeste(p.id);
       return;
     }
+    const rolagemId = p.visibilidade === 'publica' ? avisarInicioRolagem(ficha.nome || 'jogador', ficha.corVisual, 'teste') : undefined;
     if (graceRef.current) clearTimeout(graceRef.current);
     setRotulo({ cor: ficha.corVisual, texto: `${ficha.nome || 'jogador'} está rolando…` });
     marcarVisivel(true);
     rolar('1d20', (grupos) => {
       const d20 = grupos[0]?.rolls[0]?.value ?? 0;
-      const r = rolarTestePericiaFicha(ficha, pericia, d20, basePV, registrarLog, registrarRoll, p.visibilidade, p.rotuloArma);
+      const r = rolarTestePericiaFicha(ficha, pericia, d20, basePV, registrarLog, registrarRoll, p.visibilidade, p.rotuloArma, rolagemId);
       setRotulo({ cor: ficha.corVisual, texto: `${p.rotuloArma ?? pericia.nome}: ${r.texto}` });
       graceRef.current = setTimeout(() => marcarVisivel(false), GRACA_RESULTADO_MS);
-      limparPedidoRolagemTeste();
+      limparPedidoRolagemTeste(p.id);
     }, 'rede', ficha.id, 'teste');
   };
 
@@ -162,7 +175,7 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
   executarPedidoDanoRef.current = executarPedidoDano;
 
   useEffect(() => {
-    if (!ficha || !pedidoDano) return;
+    if (!ficha || !pedidoDano) { pedidoDanoPendenteRef.current = null; return; }
     if (ready && !rolando) {
       executarPedidoDanoRef.current(pedidoDano);
     } else {
@@ -184,7 +197,7 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
   executarPedidoTesteRef.current = executarPedidoTeste;
 
   useEffect(() => {
-    if (!ficha || !pedidoTeste) return;
+    if (!ficha || !pedidoTeste) { pedidoTestePendenteRef.current = null; return; }
     if (ready && !rolando) {
       executarPedidoTesteRef.current(pedidoTeste);
     } else {
@@ -200,6 +213,26 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
       executarPedidoTesteRef.current(p);
     }
   }, [ficha, ready, rolando]);
+
+  useEffect(() => {
+    if (!erro || !falhaRolagem || !ficha) return;
+    // Uma falha da física não chama onComplete. Libere apenas os pedidos que
+    // esta bandeja já iniciou, para permitir tentar novamente sem criar resultado.
+    const dano = usePedidoRolagemDanoStore.getState();
+    const teste = usePedidoRolagemTesteStore.getState();
+    const falhouDano = !!dano.pedido && dano.pedido.fichaId === ficha.id && dano.emExecucaoId === dano.pedido.id;
+    const falhouTeste = !!teste.pedido && teste.pedido.fichaId === ficha.id && teste.emExecucaoId === teste.pedido.id;
+    if (!falhouDano && !falhouTeste) return;
+    if (falhouDano) { pedidoDanoPendenteRef.current = null; dano.limparPedidoRolagemDano(dano.pedido!.id); }
+    if (falhouTeste) { pedidoTestePendenteRef.current = null; teste.limparPedidoRolagemTeste(teste.pedido!.id); }
+    const inicio = useRolagemAoVivoStore.getState().iniciando;
+    if (inicio && ehRolagemPropria(inicio.id)) useRolagemAoVivoStore.getState().definirInicio(null);
+    if (graceRef.current) clearTimeout(graceRef.current);
+    setRotulo({ cor: ficha?.corVisual ?? 'var(--ruido)', texto: 'não consegui rolar — tente novamente' });
+    marcarVisivel(true);
+    graceRef.current = setTimeout(() => marcarVisivel(false), GRACA_RESULTADO_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [erro, falhaRolagem]);
 
   useEffect(
     () => () => {
@@ -234,7 +267,7 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
           }}
         />
       )}
-      <span style={{ fontSize: 12, color: rotulo?.cor ?? 'var(--ink-dim)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 12, color: rotulo?.cor ?? 'var(--ink-dim)', whiteSpace: 'normal', maxWidth: 420 }}>
         {rotulo?.texto ?? ''}
       </span>
     </div>

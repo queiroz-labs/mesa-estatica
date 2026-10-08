@@ -82,7 +82,7 @@ const exclusoesDuranteEnvio = new Set<string>();
  * está ATIVO fica fora daqui — isso é `mapaAtivoSync.ts` (singleton, mesmo papel de
  * `midia_estado.faixa_atual_id`).
  */
-export function iniciarSyncMapasBiblioteca(): () => void {
+export function iniciarSyncMapasBiblioteca({ somenteLeitura = false }: { somenteLeitura?: boolean } = {}): () => void {
   const cliente = supabase;
   if (!cliente) return () => {};
 
@@ -109,7 +109,7 @@ export function iniciarSyncMapasBiblioteca(): () => void {
             for (const local of s.mapa.biblioteca) {
               // dataURL local (nunca chegou a subir, ou upload em voo) não existe no servidor —
               // um refetch sem essa exceção apagava o item da tela até o upload confirmar.
-              if (pendencias.has(local.id) || ehDataUrl(local.imagemUrl)) {
+              if (!somenteLeitura && (pendencias.has(local.id) || ehDataUrl(local.imagemUrl))) {
                 biblioteca.push(local);
                 continue;
               }
@@ -150,7 +150,9 @@ export function iniciarSyncMapasBiblioteca(): () => void {
     );
   });
 
-  const unsubscribeLocal = useStore.subscribe((state, prevState) => {
+  // Hidratação de outra instância também muda referências de grade/FoW. O jogador nunca
+  // publica biblioteca, nem quando isso parecer uma alteração local ao diff.
+  const unsubscribeLocal = somenteLeitura ? () => {} : useStore.subscribe((state, prevState) => {
     if (aplicandoRemoto || state.mapa.biblioteca === prevState.mapa.biblioteca) return;
 
     const { upserts, removidos } = computarDiffMapas(mapasAnteriores, state.mapa.biblioteca);
@@ -176,7 +178,7 @@ export function iniciarSyncMapasBiblioteca(): () => void {
   });
 
   // reenvia o que ficou pendente de uma sessão anterior — relê a store ATUAL.
-  for (const chave of retomarPendenciasPersistidas('mapas-biblioteca-sync')) {
+  for (const chave of somenteLeitura ? [] : retomarPendenciasPersistidas('mapas-biblioteca-sync')) {
     const replay = resolverReplayMapa(chave, useStore.getState().mapa.biblioteca);
     if (replay === 'apagar') {
       const id = chave.slice(PREFIXO_DELETE.length);
@@ -203,14 +205,14 @@ export function iniciarSyncMapasBiblioteca(): () => void {
         const s = useStore.getState();
         if (payload.eventType === 'DELETE') {
           const idRemovido = (payload.old as { id: string }).id;
-          if (pendencias.has(idRemovido)) {
+          if (!somenteLeitura && pendencias.has(idRemovido)) {
             exclusoesDuranteEnvio.add(idRemovido);
             return;
           }
           useStore.setState({ mapa: { ...s.mapa, biblioteca: s.mapa.biblioteca.filter((m) => m.id !== idRemovido) } });
         } else {
           const mapa = paraMapa(payload.new as LinhaMapa);
-          if (pendencias.has(mapa.id)) return;
+          if (!somenteLeitura && pendencias.has(mapa.id)) return;
           const existe = s.mapa.biblioteca.some((m) => m.id === mapa.id);
           const biblioteca = existe
             ? s.mapa.biblioteca.map((m) => (m.id === mapa.id ? mapa : m))

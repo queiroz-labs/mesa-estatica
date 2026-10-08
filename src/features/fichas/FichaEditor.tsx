@@ -19,11 +19,15 @@ export default function FichaEditor({ ficha, souMestre }: { ficha: Ficha; souMes
   const basePV = useStore((s) => s.config.basePV);
   const onChange = (patch: Partial<Ficha>) => atualizarFicha(ficha.id, patch);
   const [exportando, setExportando] = useState(false);
+  const [erroExportacao, setErroExportacao] = useState(false);
 
   const exportar = async () => {
     setExportando(true);
+    setErroExportacao(false);
     try {
       await exportarFichaDocx(ficha, basePV);
+    } catch {
+      setErroExportacao(true);
     } finally {
       setExportando(false);
     }
@@ -36,6 +40,7 @@ export default function FichaEditor({ ficha, souMestre }: { ficha: Ficha; souMes
           {exportando ? 'gerando…' : 'exportar .docx'}
         </button>
       </div>
+      {erroExportacao && <p role="status" className="vazio">não consegui gerar a ficha — tente exportar novamente.</p>}
       <IdentidadeSection ficha={ficha} onChange={onChange} />
       <VinculosSection ficha={ficha} onChange={onChange} />
       <AtributosDerivadosSection ficha={ficha} onChange={onChange} souMestre={souMestre} />

@@ -16,8 +16,10 @@ export interface PedidoRolagemDano {
 
 interface PedidoRolagemDanoState {
   pedido: PedidoRolagemDano | null;
+  emExecucaoId: string | null;
   pedirRolagemDano: (p: PedidoRolagemDano) => void;
-  limparPedidoRolagemDano: () => void;
+  iniciarPedidoRolagemDano: (id: string) => boolean;
+  limparPedidoRolagemDano: (id?: string) => void;
 }
 
 /**
@@ -33,8 +35,17 @@ interface PedidoRolagemDanoState {
  * Cada bundle (mestre/jogador) importa seu próprio módulo — sem sincronização de rede, mesmo
  * isolamento que já existe entre as duas bandejas físicas hoje.
  */
-export const usePedidoRolagemDanoStore = create<PedidoRolagemDanoState>((set) => ({
+export const usePedidoRolagemDanoStore = create<PedidoRolagemDanoState>((set, get) => ({
   pedido: null,
-  pedirRolagemDano: (p) => set({ pedido: p }),
-  limparPedidoRolagemDano: () => set({ pedido: null }),
+  emExecucaoId: null,
+  pedirRolagemDano: (p) => set({ pedido: p, emExecucaoId: null }),
+  iniciarPedidoRolagemDano: (id) => {
+    if (get().pedido?.id !== id || get().emExecucaoId === id) return false;
+    set({ emExecucaoId: id });
+    return true;
+  },
+  limparPedidoRolagemDano: (id) => {
+    if (id !== undefined && get().pedido?.id !== id) return;
+    set({ pedido: null, emExecucaoId: null });
+  },
 }));

@@ -221,14 +221,14 @@ function ExportarImportar({ abrirControle }: { abrirControle: () => void }) {
   const importarDeArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = e.target.files?.[0];
     if (!arquivo) return;
-    arquivo.text().then((texto) => {
+    void arquivo.text().then((texto) => {
       try {
         importarJSON(texto);
         setPrecisaBackup(false);
       } catch {
         window.alert('sinal corrompido — não foi possível ler esse arquivo.');
       }
-    });
+    }).catch(() => window.alert('não consegui ler esse arquivo — selecione o JSON novamente.'));
     e.target.value = '';
   };
 

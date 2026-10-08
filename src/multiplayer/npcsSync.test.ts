@@ -98,6 +98,10 @@ vi.mock('../lib/supabaseClient', () => ({
     return h.clienteAtual;
   },
 }));
+vi.mock('./visibilidadeNpcsSync', () => ({
+  iniciarNotificacoesVisibilidadeNpcs: vi.fn(() => () => {}),
+  notificarVisibilidadeNpcs: vi.fn(),
+}));
 vi.mock('../lib/statusMesa', () => ({
   assinarStatusCanal: vi.fn(() => vi.fn()),
   assinarStatusCanalComRefetch: vi.fn((_nome: string, refetch: () => void | Promise<void>) => {

@@ -20,7 +20,7 @@ interface Linha {
  * é `mapasBibliotecaSync.ts`, tabela própria. Só o GM escreve (RLS
  * `mapa_publico_update_gm`/`insert_gm`); o jogador só lê.
  */
-export function iniciarSyncMapaAtivo(): () => void {
+export function iniciarSyncMapaAtivo({ somenteLeitura = false }: { somenteLeitura?: boolean } = {}): () => void {
   const cliente = supabase;
   if (!cliente) return () => {};
 
@@ -63,11 +63,11 @@ export function iniciarSyncMapaAtivo(): () => void {
     if (mapa && (ehDataUrl(mapa.imagemUrl) || mapaAguardandoEnvio(mapa.id))) return;
     executarComRetentativa('mapa-ativo-sync', ID_MAPA, push);
   };
-  const pararConfirmacao = aoConfirmarMapa((id) => {
+  const pararConfirmacao = somenteLeitura ? () => {} : aoConfirmarMapa((id) => {
     if (pendente && useStore.getState().mapa.mapaAtivoId === id) enviarQuandoPronto();
   });
 
-  const unsubscribeLocal = useStore.subscribe((state, prevState) => {
+  const unsubscribeLocal = somenteLeitura ? () => {} : useStore.subscribe((state, prevState) => {
     if (aplicandoRemotoContagem > 0) return;
     if (state.mapa.mapaAtivoId === prevState.mapa.mapaAtivoId) return;
     pendente = true;
@@ -76,7 +76,7 @@ export function iniciarSyncMapaAtivo(): () => void {
   });
 
   // reenvia se ficou pendente de uma sessão anterior — singleton, chave sempre ID_MAPA.
-  if (retomarPendenciasPersistidas('mapa-ativo-sync').length > 0) {
+  if (!somenteLeitura && retomarPendenciasPersistidas('mapa-ativo-sync').length > 0) {
     pendente = true;
     enviarQuandoPronto();
   }

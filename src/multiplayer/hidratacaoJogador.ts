@@ -11,6 +11,7 @@ import { normalizarAmbiencia } from '../state/ambiencia';
 import { paraFaixa, type LinhaFaixa } from './midiaFaixasSync';
 import { paraNpcPublico, type LinhaPublico as LinhaNpcPublico, type NpcPublico } from './npcsSync';
 import { paraSessaoPublica, type Linha as LinhaSessaoPublica } from './sessaoPublicaSync';
+import { observarVisibilidadeNpcs } from './visibilidadeNpcsSync';
 
 /**
  * Hidratação read-only do `PlayerApp` (mesa-estatica-multiplayer-completo.md Parte IV §4,
@@ -198,24 +199,43 @@ export function useNpcsPublicos(): NpcPublico[] {
     if (!cliente) return;
 
     let cancelado = false;
+    let buscando = false;
+    let buscarNovamente = false;
 
     // busca inicial E refetch de reconexão — mesmo motivo de `useHidratarSessaoPublica`. RLS
     // da migração 0003 já filtra visivel = true pro jogador — o que chega aqui é exatamente o
     // que ele pode ver, sem filtro extra no client.
-    const refetch = () =>
-      cliente
+    const refetch = () => {
+      if (buscando) {
+        buscarNovamente = true;
+        return Promise.resolve();
+      }
+      buscando = true;
+      return cliente
         .from('npcs_publico')
         .select('*')
         .then(({ data, error }) => {
           if (cancelado) return;
+          buscando = false;
+          if (buscarNovamente) {
+            buscarNovamente = false;
+            void refetch();
+            return;
+          }
           if (error) console.error('[hidratacaoJogador] busca de npcs_publico falhou', error);
           else if (data) setNpcs((data as LinhaNpcPublico[]).map(paraNpcPublico));
         });
+    };
     void refetch();
+    const pararVisibilidade = observarVisibilidadeNpcs(refetch);
 
     const canal = cliente
       .channel('jogador-npcs-publico')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'npcs_publico' }, (payload) => {
+        if (cancelado) return;
+        // Um UPDATE de outro NPC pode chegar enquanto o snapshot que vai remover um NPC
+        // ocultado está em voo. Renova a busca em vez de descartar e perder a invalidação.
+        if (buscando) void refetch();
         if (payload.eventType === 'DELETE') {
           const idRemovido = (payload.old as { id: string }).id;
           setNpcs((atual) => atual.filter((n) => n.id !== idRemovido));
@@ -228,6 +248,7 @@ export function useNpcsPublicos(): NpcPublico[] {
 
     return () => {
       cancelado = true;
+      pararVisibilidade();
       desconectarCanal('jogador-npcs-publico');
       cliente.removeChannel(canal);
     };
@@ -244,6 +265,8 @@ export function useIniciativaPublica(): EntradaIniciativa[] {
     if (!cliente) return;
 
     let cancelado = false;
+    let buscando = false;
+    let buscarNovamente = false;
     // Ordem importa (quem joga antes de quem) — `EntradaIniciativa` não guarda `posicao`
     // (a ordem do array É a posição), então mantém a última `posicao` conhecida por id pra
     // reordenar sem precisar reconsultar a tabela inteira a cada evento (mesmo padrão de
@@ -255,25 +278,39 @@ export function useIniciativaPublica(): EntradaIniciativa[] {
     // busca inicial E refetch de reconexão — a ordem de turno é exatamente o caso que motivou
     // esta auditoria (mesmo motivo de `useHidratarSessaoPublica`): sem isso, um jogador que
     // reconecta no meio do combate fica com o turno parado até um reload manual.
-    const refetch = () =>
-      cliente
+    const refetch = () => {
+      if (buscando) {
+        buscarNovamente = true;
+        return Promise.resolve();
+      }
+      buscando = true;
+      return cliente
         .from('iniciativa')
         .select('*')
         .order('posicao', { ascending: true })
         .then(({ data, error }) => {
           if (cancelado) return;
+          buscando = false;
+          if (buscarNovamente) {
+            buscarNovamente = false;
+            void refetch();
+            return;
+          }
           if (error) return console.error('[hidratacaoJogador] busca de iniciativa falhou', error);
           if (!data) return;
           const linhas = data as LinhaIniciativa[];
           for (const linha of linhas) posicoesConhecidas.set(linha.id, linha.posicao);
           setIniciativa(linhas.map(paraEntrada));
         });
+    };
     void refetch();
+    const pararVisibilidade = observarVisibilidadeNpcs(refetch);
 
     const canal = cliente
       .channel('jogador-iniciativa')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'iniciativa' }, (payload) => {
         if (cancelado) return;
+        if (buscando) void refetch();
         if (payload.eventType === 'DELETE') {
           const id = (payload.old as { id?: string }).id;
           if (!id) return;
@@ -294,6 +331,7 @@ export function useIniciativaPublica(): EntradaIniciativa[] {
 
     return () => {
       cancelado = true;
+      pararVisibilidade();
       desconectarCanal('jogador-iniciativa');
       cliente.removeChannel(canal);
     };

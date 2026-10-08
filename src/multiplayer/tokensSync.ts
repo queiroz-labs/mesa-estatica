@@ -6,6 +6,8 @@ import { criarThrottlePorChave } from './debounce';
 import { ehErroPermissaoNegada, executarComRetentativa, marcarEmVoo, resolverPendencia, retomarPendenciasPersistidas } from './filaPendencias';
 import { eraRemocaoExplicita } from './remocaoExplicita';
 import { computarDiffTokens } from './tokensDiff';
+import { posicaoTokenEstaAtrasada, versaoPosicaoValida } from './posicaoToken';
+import { criarRecepcaoPosicoesTokens } from './tokensPosicaoRapida';
 
 const PREFIXO_DELETE = 'delete:';
 
@@ -33,6 +35,7 @@ interface LinhaTokenSupabase {
   tipo: 'pc' | 'npc';
   x: number;
   y: number;
+  versao_posicao?: number;
 }
 
 const paraLinha = (t: TokenMapa): LinhaTokenSupabase => ({
@@ -49,7 +52,14 @@ const paraToken = (r: LinhaTokenSupabase): TokenMapa => ({
   tipo: r.tipo,
   x: r.x,
   y: r.y,
+  ...(versaoPosicaoValida(r.versao_posicao) ? { versaoPosicao: r.versao_posicao } : {}),
 });
+
+interface ResultadoEnvioToken {
+  error: unknown;
+  tokenRemoto?: LinhaTokenSupabase;
+  tokenAusente?: boolean;
+}
 
 /** `.upsert()` do PostgREST vira `INSERT ... ON CONFLICT DO UPDATE` — e a policy de INSERT
  *  (`tokens_insert_gm`, migração 0021) roda pra QUALQUER upsert, mesmo quando a linha já existe
@@ -69,8 +79,8 @@ const paraToken = (r: LinhaTokenSupabase): TokenMapa => ({
  *  faz o handler de Realtime ignorar o DELETE remoto durante o arrasto, então o próximo tick do
  *  throttle ainda vê o token localmente); cair pro INSERT nesse caso RESSUSCITA a linha
  *  apagada, propagando de volta pra todo mundo via Realtime (achado 29/08). Pra um move
- *  (`ehNovo=false`), zero linhas só pode significar "não existe mais no servidor" — não faz
- *  nada e deixa o Realtime/refetch reconciliar a remoção local. */
+ *  (`ehNovo=false`), zero linhas também pode ser UPDATE filtrado pela RLS. Uma leitura por id
+ *  diferencia revínculo (42501 + posição real) de token removido, sem ressuscitar a linha. */
 function empurrarToken(cliente: NonNullable<typeof supabase>, token: TokenMapa, ehNovo: boolean) {
   const linha = paraLinha(token);
   return cliente
@@ -78,10 +88,16 @@ function empurrarToken(cliente: NonNullable<typeof supabase>, token: TokenMapa, 
     .update({ x: linha.x, y: linha.y, participante_id: linha.participante_id, tipo: linha.tipo })
     .eq('id', linha.id)
     .select('id')
-    .then((resultado): PromiseLike<{ error: unknown }> | { error: unknown } => {
+    .then((resultado): PromiseLike<ResultadoEnvioToken> | ResultadoEnvioToken => {
       if (resultado.error) return resultado;
       if (resultado.data && resultado.data.length > 0) return resultado;
-      if (!ehNovo) return { error: null };
+      if (!ehNovo) {
+        return cliente.from('tokens').select('*').eq('id', linha.id).maybeSingle().then(({ data, error }) => {
+          if (error) return { error };
+          if (!data) return { error: null, tokenAusente: true };
+          return { error: { code: '42501', message: 'sem permissão para mover este token; recarregue para revincular' }, tokenRemoto: data as LinhaTokenSupabase };
+        });
+      }
       return cliente.from('tokens').insert(linha);
     });
 }
@@ -118,16 +134,40 @@ const tokensNovos = new Set<string>();
  * dos tokens via Supabase Realtime. Zustand continua a fonte local/otimista; o Supabase
  * é a fonte compartilhada por cima (mesmo princípio da sessão pública/privada).
  *
- * Sem Anonymous Auth/RLS por dono ainda (isso é Fase B/F) — a policy da tabela `tokens`
- * nesta fase é aberta pra leitura/escrita com a chave anon. Aceitável só porque o link
- * do projeto não é público (grupo fechado no Discord).
+ * A RLS atual (migração 0021) só permite criar/apagar ao mestre e mover ao mestre ou dono
+ * do PC. O transporte continua passando por UPDATE autenticado, nunca por canal público.
  */
 export function iniciarSyncTokens(): () => void {
   const cliente = supabase;
   if (!cliente) return () => {};
 
   let aplicandoRemoto = false;
+  let encerrado = false;
   let tokensAnteriores = useStore.getState().mapa.tokens;
+  const enviosEmVoo = new Map<string, number>();
+  const ultimoEnvio = new Map<string, number>();
+  const ultimoConfirmado = new Map<string, { sequencia: number; token: TokenMapa }>();
+  let sequenciaEnvio = 0;
+  const ausenciasConfirmadas = new Set<string>();
+  // Só versões realmente recebidas do servidor: um backup local não impõe sua versão ao banco.
+  const versoesConfirmadas = new Map<string, number>();
+
+  const aplicarTokenRemoto = (token: TokenMapa) => {
+    if (ausenciasConfirmadas.has(token.id)) return;
+    if (posicaoTokenEstaAtrasada(token, versoesConfirmadas.get(token.id) ?? 0)) return;
+    if (token.versaoPosicao !== undefined) versoesConfirmadas.set(token.id, token.versaoPosicao);
+    const s = useStore.getState();
+    const atual = s.mapa.tokens.find((t) => t.id === token.id);
+    if (tokensEmArrasto.has(token.id) || pendencias.has(token.id)) {
+      // Confirma a versão sem pisar na posição otimista ainda em arrasto/envio.
+      if (atual && token.versaoPosicao !== undefined && token.versaoPosicao !== atual.versaoPosicao) {
+        useStore.setState({ mapa: { ...s.mapa, tokens: s.mapa.tokens.map((t) => t.id === token.id ? { ...t, versaoPosicao: token.versaoPosicao } : t) } });
+      }
+      return;
+    }
+    const tokens = atual ? s.mapa.tokens.map((t) => t.id === token.id ? token : t) : [...s.mapa.tokens, token];
+    useStore.setState({ mapa: { ...s.mapa, tokens } });
+  };
 
   /** Busca inicial E refetch de reconexão (canal caiu e voltou) — merge preservando qualquer
    *  token com `pendencias`/`tokensEmArrasto` (mesmo formato de `refetchFichas` em
@@ -140,27 +180,37 @@ export function iniciarSyncTokens(): () => void {
    *  em silêncio. Na reconexão, o Realtime não reenvia eventos perdidos durante a queda, então
    *  o refetch ainda precisa trazer tokens movidos por OUTRO cliente enquanto este estava
    *  desconectado — só não pode mais pisar numa edição local ainda não confirmada. */
-  const refetchTokens = () =>
-    cliente
+  const refetchTokens = () => {
+    const ausenciasAoConsultar = new Set(ausenciasConfirmadas);
+    return cliente
       .from('tokens')
       .select('*')
       .then(({ data, error }) => {
-        if (error || !data) return;
+        if (encerrado || error || !data) return;
         aplicandoRemoto = true;
         try {
           const remotos = (data as LinhaTokenSupabase[]).map(paraToken);
-          const remotosPorId = new Map(remotos.map((t) => [t.id, t]));
+          const atrasados = new Set<string>();
+          for (const token of remotos) {
+            // Consulta iniciada antes da confirmação de remoção não pode ressuscitar o token.
+            if (ausenciasConfirmadas.has(token.id) && !ausenciasAoConsultar.has(token.id)) { atrasados.add(token.id); continue; }
+            ausenciasConfirmadas.delete(token.id);
+            if (posicaoTokenEstaAtrasada(token, versoesConfirmadas.get(token.id) ?? 0)) atrasados.add(token.id);
+            else if (token.versaoPosicao !== undefined) versoesConfirmadas.set(token.id, token.versaoPosicao);
+          }
+          const remotosPorId = new Map(remotos.filter((t) => !atrasados.has(t.id)).map((t) => [t.id, t]));
           useStore.setState((s) => {
             const tokens: TokenMapa[] = [];
             for (const local of s.mapa.tokens) {
-              if (pendencias.has(local.id) || tokensEmArrasto.has(local.id)) {
-                tokens.push(local);
+              if (pendencias.has(local.id) || tokensEmArrasto.has(local.id) || atrasados.has(local.id)) {
+                const versao = remotosPorId.get(local.id)?.versaoPosicao;
+                tokens.push(versao !== undefined ? { ...local, versaoPosicao: versao } : local);
                 continue;
               }
               const remoto = remotosPorId.get(local.id);
               if (remoto) tokens.push(remoto);
             }
-            for (const remoto of remotos) {
+            for (const remoto of remotosPorId.values()) {
               if (!s.mapa.tokens.some((t) => t.id === remoto.id)) tokens.push(remoto);
             }
             return { mapa: { ...s.mapa, tokens } };
@@ -170,15 +220,68 @@ export function iniciarSyncTokens(): () => void {
           aplicandoRemoto = false;
         }
       });
+  };
   void refetchTokens();
+
+  const recepcaoRapida = criarRecepcaoPosicoesTokens(cliente, (posicao) => {
+    if (encerrado) return;
+    const atual = useStore.getState().mapa.tokens.find((t) => t.id === posicao.id && t.tipo === 'pc');
+    if (!atual) return;
+    aplicandoRemoto = true;
+    try { aplicarTokenRemoto({ ...atual, ...posicao }); }
+    finally { tokensAnteriores = useStore.getState().mapa.tokens; aplicandoRemoto = false; }
+  }, refetchTokens);
+  recepcaoRapida.atualizar(tokensAnteriores);
 
   const agendarUpsert = criarThrottlePorChave<TokenMapa>(ATRASO_PUSH_MS, (_id, token) => {
     const ehNovo = tokensNovos.has(_id);
-    executarComRetentativa('tokens-sync', token.id, () =>
-      Promise.resolve(
-        empurrarToken(cliente, useStore.getState().mapa.tokens.find((t) => t.id === token.id) ?? token, ehNovo),
-      ).then((resultado) => {
-        if (!resultado?.error) tokensNovos.delete(_id);
+    executarComRetentativa('tokens-sync', token.id, () => {
+      const atualAoEnviar = useStore.getState().mapa.tokens.find((t) => t.id === token.id);
+      // Um tick já agendado antes da reconciliação não envia novamente um token removido.
+      if (!atualAoEnviar && !ehNovo) { pendencias.delete(_id); return Promise.resolve({ error: null }); }
+      const enviado = atualAoEnviar ?? token;
+      const sequencia = ++sequenciaEnvio;
+      ultimoEnvio.set(_id, sequencia);
+      enviosEmVoo.set(_id, (enviosEmVoo.get(_id) ?? 0) + 1);
+      return Promise.resolve(empurrarToken(cliente, enviado, ehNovo)).finally(() => {
+        const restantes = (enviosEmVoo.get(_id) ?? 1) - 1;
+        if (restantes > 0) enviosEmVoo.set(_id, restantes);
+        else enviosEmVoo.delete(_id);
+      }).then((resultado) => {
+        if (resultado.tokenRemoto || resultado.tokenAusente) {
+          const atual = useStore.getState().mapa.tokens.find((t) => t.id === _id);
+          const remoto = resultado.tokenRemoto ? paraToken(resultado.tokenRemoto) : null;
+          if (remoto && (ultimoEnvio.get(_id) !== sequencia
+            || posicaoTokenEstaAtrasada(remoto, versoesConfirmadas.get(_id) ?? 0)
+            || (atual && computarDiffTokens([enviado], [atual]).upserts.length > 0))) {
+            // A leitura pertence a um movimento anterior; a posição nova ainda precisa confirmar.
+            if (atual && pendencias.has(_id) && !enviosEmVoo.has(_id)) {
+              const confirmado = ultimoConfirmado.get(_id)?.token;
+              if (confirmado && computarDiffTokens([confirmado], [atual]).upserts.length === 0) pendencias.delete(_id);
+              else agendarUpsert(_id, atual);
+            }
+            return { error: null };
+          }
+          pendencias.delete(_id);
+          tokensEmArrasto.delete(_id);
+          tokensNovos.delete(_id);
+          aplicandoRemoto = true;
+          try {
+            if (remoto) aplicarTokenRemoto(remoto);
+            else {
+              ausenciasConfirmadas.add(_id);
+              ultimoConfirmado.delete(_id);
+              versoesConfirmadas.delete(_id);
+              useStore.setState((s) => ({ mapa: { ...s.mapa, tokens: s.mapa.tokens.filter((t) => t.id !== _id) } }));
+            }
+          } finally { tokensAnteriores = useStore.getState().mapa.tokens; aplicandoRemoto = false; }
+          return resultado;
+        }
+        if (!resultado?.error) {
+          tokensNovos.delete(_id);
+          if (sequencia >= (ultimoConfirmado.get(_id)?.sequencia ?? 0)) ultimoConfirmado.set(_id, { sequencia, token: enviado });
+          if (ausenciasConfirmadas.has(_id)) void refetchTokens();
+        }
         // só libera o id pro handler de Realtime aceitar eco/remoto de novo DEPOIS que a
         // escrita CONFIRMA (sem erro) — com o throttle disparando a rede de leading edge (na
         // hora, não só ~150ms depois que o arrasto pára), limpar antes de disparar deixava uma
@@ -190,13 +293,29 @@ export function iniciarSyncTokens(): () => void {
         // (`tratarErroPermanente`), então também libera aqui: sem isso o token ficava marcado
         // pra sempre e o handler de Realtime/`refetchTokens` ignoravam qualquer atualização
         // remota legítima dele até a página recarregar (achado 29/08).
-        if (!resultado?.error || ehErroPermissaoNegada(resultado.error)) pendencias.delete(_id);
+        if (ehErroPermissaoNegada(resultado?.error)) pendencias.delete(_id);
+        else if (!resultado?.error && !enviosEmVoo.has(_id) && pendencias.has(_id)) {
+          const atual = useStore.getState().mapa.tokens.find((t) => t.id === _id);
+          if (!atual || computarDiffTokens([enviado], [atual]).upserts.length === 0) {
+            pendencias.delete(_id);
+          } else {
+            // A confirmação pertence a uma posição anterior. Mantém o anti-eco e envia
+            // a posição final, inclusive se respostas HTTP terminaram fora de ordem.
+            agendarUpsert(_id, atual);
+          }
+        }
         return resultado;
-      }),
+      }).catch((erro: unknown) => {
+        if (ehErroPermissaoNegada(erro)) pendencias.delete(_id);
+        throw erro;
+      });
+    },
+      { aguardandoConfirmacao: () => pendencias.has(_id) },
     );
   });
 
   const unsubscribeLocal = useStore.subscribe((state, prevState) => {
+    recepcaoRapida.atualizar(state.mapa.tokens);
     if (aplicandoRemoto || state.mapa.tokens === prevState.mapa.tokens) return;
 
     const { upserts, removidos } = computarDiffTokens(tokensAnteriores, state.mapa.tokens);
@@ -241,21 +360,23 @@ export function iniciarSyncTokens(): () => void {
   const canal = cliente
     .channel('tokens-sync')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tokens' }, (payload) => {
+      if (encerrado) return;
       aplicandoRemoto = true;
       try {
         const s = useStore.getState();
         if (payload.eventType === 'DELETE') {
           const idRemovido = (payload.old as { id: string }).id;
-          if (tokensEmArrasto.has(idRemovido) || pendencias.has(idRemovido)) return;
+          // DELETE confirma existência, não posição: um arrasto/ACK retido não mantém a linha viva.
+          tokensEmArrasto.delete(idRemovido);
+          pendencias.delete(idRemovido);
+          tokensNovos.delete(idRemovido);
+          ultimoConfirmado.delete(idRemovido);
+          ausenciasConfirmadas.add(idRemovido);
+          versoesConfirmadas.delete(idRemovido);
           useStore.setState({ mapa: { ...s.mapa, tokens: s.mapa.tokens.filter((t) => t.id !== idRemovido) } });
         } else {
-          const token = paraToken(payload.new as LinhaTokenSupabase);
-          if (tokensEmArrasto.has(token.id) || pendencias.has(token.id)) return;
-          const existe = s.mapa.tokens.some((t) => t.id === token.id);
-          const tokens = existe
-            ? s.mapa.tokens.map((t) => (t.id === token.id ? token : t))
-            : [...s.mapa.tokens, token];
-          useStore.setState({ mapa: { ...s.mapa, tokens } });
+          if (payload.eventType === 'INSERT') ausenciasConfirmadas.delete((payload.new as LinhaTokenSupabase).id);
+          aplicarTokenRemoto(paraToken(payload.new as LinhaTokenSupabase));
         }
       } finally {
         tokensAnteriores = useStore.getState().mapa.tokens;
@@ -265,7 +386,9 @@ export function iniciarSyncTokens(): () => void {
     .subscribe(assinarStatusCanalComRefetch('tokens-sync', refetchTokens));
 
   return () => {
+    encerrado = true;
     unsubscribeLocal();
+    recepcaoRapida.parar();
     desconectarCanal('tokens-sync');
     cliente.removeChannel(canal);
   };

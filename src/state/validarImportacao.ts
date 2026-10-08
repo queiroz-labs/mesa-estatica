@@ -56,7 +56,15 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     listar('sessaoPrivada.selecionadosIniciativa', dados.sessaoPrivada.selecionadosIniciativa);
     objetar('sessaoPrivada.estatisticas', dados.sessaoPrivada.estatisticas);
   }
-  for (const campo of ['pistas', 'rollsLog']) listarDeObjetos(campo, dados[campo]);
+  listarDeObjetos('rollsLog', dados.rollsLog);
+  visitarLista('pistas', dados.pistas, (item, caminho) => {
+    for (const campo of ['texto', 'ligadoA']) {
+      if (typeof item[campo] !== 'string') problemas.push(`"${caminho}.${campo}" deveria ser texto`);
+    }
+    if (!['nao-descoberta', 'descoberta', 'compartilhada'].includes(item.status as string)) {
+      problemas.push(`"${caminho}.status" inválido`);
+    }
+  });
   if (registro(dados.midia)) {
     visitarLista('midia.faixas', dados.midia.faixas, (item, caminho) => {
       for (const campo of ['nome', 'tag', 'path', 'url']) textar(`${caminho}.${campo}`, item[campo]);

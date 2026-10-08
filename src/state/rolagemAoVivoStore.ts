@@ -17,14 +17,21 @@ export interface RolagemAoVivo {
   /** nome de quem rolou, pro aviso "X está rolando". */
   origem: string;
   tipo: TipoRolagemForcada;
+  /** Apenas apresentação; a categoria usada para resolver/forçar continua em `tipo`. */
+  contexto?: 'livre' | 'trauma';
   /** modificador plano somado ao(s) dado(s) (perícia+atributo, bônus manual...) — não é um
    *  dado, não passa pela física; só entra no total mostrado pelo aviso ao vivo
    *  (`formatarHeaderRolagem`). Ausente/undefined quando a rolagem não tem bônus. */
   bonus?: number;
 }
 
+/** Sinal de atividade sem valores, notação ou informações da fila de dados. */
+export type InicioRolagemAoVivo = Pick<RolagemAoVivo, 'id' | 'origem' | 'cor' | 'tipo'>;
+
 interface RolagemAoVivoState {
   atual: RolagemAoVivo | null;
+  iniciando: InicioRolagemAoVivo | null;
+  definirInicio: (r: InicioRolagemAoVivo | null) => void;
   definirAtual: (r: RolagemAoVivo | null) => void;
   /** Espelha o `visivel` de `RolagemAoVivoPlayer.tsx` (dado rolando + graça mostrando o
    *  resultado) — `atual` nunca volta a `null` sozinho, então não serve pra saber se o aviso
@@ -39,20 +46,16 @@ interface RolagemAoVivoState {
  * `aoeStore.ts`/`pingsStore.ts`: é estado de interação ao vivo (um jogador rolando agora), não
  * estado da mesa; não pode vazar pro localStorage nem pro export/import JSON.
  *
- * Por padrão, só os componentes do JOGADOR (`DadosTabJogador.tsx`, `QuickRollOverlayJogador.tsx`)
- * chamam `definirAtual` — o mestre normalmente nunca publica a própria rolagem aqui, só lê via
- * `RolagemAoVivoPlayer.tsx` (a tela dele já é compartilhada por Discord, não precisa do
- * broadcast pra ser vista). Mesmo sigilo por bundle já usado no projeto, não uma trava de
- * runtime.
- *
- * Exceção deliberada: dano de arma de PC rolado pela aba Combate (`rolarDanoArmaFicha` em
- * `rules/armasCombate.ts`) publica dos dois lados, mestre incluído — é uma ação de PC (sempre
- * pública), e quem estiver conectado no próprio app deve ver o dado caindo mesmo sem estar
- * olhando a tela do mestre.
+ * O jogador avisa o início no clique, sem números, e publica o resultado após a física.
+ * Os helpers de perícia, ataque e dano também publicam resultados de rolagens públicas do
+ * mestre. Cada chamada conserva a própria decisão de visibilidade: rolagens privadas
+ * ficam fora deste store e do broadcast, mesmo quando envolvem um PC.
  */
 export const useRolagemAoVivoStore = create<RolagemAoVivoState>((set) => ({
   atual: null,
-  definirAtual: (r) => set({ atual: r }),
+  iniciando: null,
+  definirInicio: (r) => set({ iniciando: r }),
+  definirAtual: (r) => set((s) => ({ atual: r, iniciando: r?.id === s.iniciando?.id ? null : s.iniciando })),
   mostrando: false,
   definirMostrando: (v) => set({ mostrando: v }),
 }));
@@ -67,6 +70,15 @@ const idsProprios = new Set<string>();
 
 export function marcarComoProprio(id: string): void {
   idsProprios.add(id);
+}
+
+/** Chamado no clique, antes de esperar o servidor e a física. O resultado continua
+ *  sendo publicado pelo caminho existente somente quando a rolagem termina. */
+export function avisarInicioRolagem(origem: string, cor: string, tipo: TipoRolagemForcada = 'teste'): string {
+  const id = crypto.randomUUID();
+  marcarComoProprio(id);
+  useRolagemAoVivoStore.getState().definirInicio({ id, origem, cor, tipo });
+  return id;
 }
 
 export function ehRolagemPropria(id: string): boolean {

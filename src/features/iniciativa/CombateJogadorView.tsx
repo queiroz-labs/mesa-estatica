@@ -28,8 +28,7 @@ export default function CombateJogadorView({ iniciativa, minhaFicha, semMoldura,
   const basePV = useStore((s) => s.config.basePV);
   const ajustarPvAtual = useStore((s) => s.ajustarPvAtual);
   const atualizarFicha = useStore((s) => s.atualizarFicha);
-  const alternarCondicaoCombate = useStore((s) => s.alternarCondicaoCombate);
-  const { modoCombate, turnoAtualId, rodada, contadorCena, condicoesCombate } = sessaoPublica;
+  const { modoCombate, turnoAtualId, rodada, contadorCena, condicoesCombate, condicaoDuracao } = sessaoPublica;
 
   const [mostrarRegras, setMostrarRegras] = useState(false);
   const [mostrarCondicoes, setMostrarCondicoes] = useState(false);
@@ -166,19 +165,21 @@ export default function CombateJogadorView({ iniciativa, minhaFicha, semMoldura,
                     <div style={{ marginTop: '0.5rem' }}>
                       <span className="combate-rotulo">condições</span>
                       <div className="combate-condicoes">
-                        {CONDICOES_COMBATE.map((c) => {
-                          const ligada = condicoesCombate?.[minhaFicha.id]?.includes(c.id) ?? false;
+                        {CONDICOES_COMBATE.filter((c) => condicoesCombate?.[minhaFicha.id]?.includes(c.id)).map((c) => {
+                          const restantes = condicaoDuracao?.[minhaFicha.id]?.[c.id];
                           return (
-                            <button
+                            <span
                               key={c.id}
-                              className={`combate-chip${ligada ? ' combate-chip--ativa' : ''}`}
-                              title={c.efeito}
-                              onClick={() => alternarCondicaoCombate(minhaFicha.id, c.id)}
+                              className="combate-chip combate-chip--ativa"
+                              title={restantes === undefined ? c.efeito : `${c.efeito} (${restantes} rodada${restantes === 1 ? '' : 's'} restante${restantes === 1 ? '' : 's'})`}
+                              style={{ cursor: 'default' }}
                             >
                               {nomeCondicao(c.id)}
-                            </button>
+                              {restantes !== undefined && ` (${restantes})`}
+                            </span>
                           );
                         })}
+                        {(condicoesCombate?.[minhaFicha.id]?.length ?? 0) === 0 && <span className="vazio">nenhuma condição ativa.</span>}
                       </div>
                     </div>
                     <div style={{ marginTop: '0.4rem' }}>

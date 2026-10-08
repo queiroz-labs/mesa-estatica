@@ -2,7 +2,7 @@ import type { Ponto } from '../features/mapa/mapaUtils';
 import type { ReguaViva } from '../state/reguasStore';
 import type { AoeVivo } from '../state/aoeStore';
 import type { PingVivo } from '../state/pingsStore';
-import type { RolagemAoVivo } from '../state/rolagemAoVivoStore';
+import type { InicioRolagemAoVivo, RolagemAoVivo } from '../state/rolagemAoVivoStore';
 
 /**
  * Confere o shape mínimo de payloads de broadcast (`reguasSync.ts`, `aoeSync.ts`) antes de
@@ -70,6 +70,16 @@ export function ehRolagemAoVivo(v: unknown): v is RolagemAoVivo {
     r.termos.every(ehRollTermo) &&
     Array.isArray(r.valores) &&
     r.valores.every((x) => Number.isFinite(x)) &&
-    (r.bonus === undefined || Number.isFinite(r.bonus))
+    (r.bonus === undefined || Number.isFinite(r.bonus)) &&
+    (r.contexto === undefined || r.contexto === 'livre' || r.contexto === 'trauma')
   );
+}
+
+export function ehInicioRolagemAoVivo(v: unknown): v is InicioRolagemAoVivo {
+  if (!v || typeof v !== 'object') return false;
+  const r = v as Record<string, unknown>;
+  return typeof r.id === 'string' && r.id.length > 0 && r.id.length <= 100
+    && typeof r.origem === 'string' && r.origem.length <= 200
+    && typeof r.cor === 'string' && r.cor.length <= 100
+    && typeof r.tipo === 'string' && ['teste', 'iniciativa', 'dano', 'sanidade', 'surto', 'qualquer'].includes(r.tipo);
 }

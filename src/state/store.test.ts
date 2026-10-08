@@ -881,6 +881,19 @@ describe('rerolarIniciativaDe', () => {
     vi.restoreAllMocks();
   });
 
+  it('rerrolagem empatada usa maior Agilidade e preserva turnoAtualId e metadados legados', () => {
+    montarIniciativa();
+    useStore.setState((s) => ({ iniciativa: [s.iniciativa[1], { ...s.iniciativa[0], valor: 5 }] }));
+    vi.spyOn(Math, 'random').mockReturnValue(0.3); // d20 7 + Agilidade 3 = 10, empatado com Fixo
+    useStore.getState().rerolarIniciativaDe('n1');
+    const s = useStore.getState();
+    expect(s.iniciativa.map((e) => e.participanteId)).toEqual(['n1', 'n2']);
+    expect(s.iniciativa[0]).toMatchObject({ valor: 10, d20: 7, agilidade: 3 });
+    expect(s.iniciativa[1].d20).toBeUndefined();
+    expect(s.sessaoPublica.turnoAtualId).toBe('e2');
+    vi.restoreAllMocks();
+  });
+
   it('participanteId fora da iniciativa não faz nada', () => {
     montarIniciativa();
     const antes = useStore.getState().iniciativa;
@@ -1142,7 +1155,7 @@ describe('iniciativa respeita a fila de forçados', () => {
     useStore.getState().ajustarSanidadeAtual(ficha.id, 4);
 
     const log = useStore.getState().log.find((e) => e.tipo === 'surto');
-    expect(log?.texto).toContain('2d20 → [13, 13]');
+    expect(log?.texto).toContain('2d20: 13 e 13');
   });
 });
 

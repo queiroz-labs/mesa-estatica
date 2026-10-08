@@ -3,6 +3,7 @@ import DiceBox, { type RollResults, type CustomColorset } from '@3d-dice/dice-bo
 import { COLORSETS, colorsetComCor, type ColorsetId } from './colorsets';
 import type { ConsumirForcadosFn, TipoRolagemForcada } from './registroForcados';
 import { resolverRolagemRemota } from '../multiplayer/rolagemRemota';
+import { textoResultadoRolagem, type TipoTextoRolagem } from '../lib/textoRolagem';
 
 /** Termo de rolagem — ex: { sides: 20, qty: 2 } = 2d20. */
 export interface RollTermo {
@@ -50,13 +51,9 @@ export interface GrupoDados {
   resultados: number[];
 }
 
-/** Corpo comum do log e do header: "notação → [d1, d2, ...] + bônus = total". Bônus 0/ausente
- *  não aparece (decisão do usuário — evita "+ 0" redundante em toda rolagem sem modificador). */
-function montarCorpoRolagem(grupos: GrupoDados[], bonus: number | undefined, total: number): string {
-  const notacao = grupos.map((g) => g.notacao).join(' + ');
-  const resultados = grupos.flatMap((g) => g.resultados);
-  const parteBonus = bonus ? ` + ${bonus}` : '';
-  return `${notacao} → [${resultados.join(', ')}]${parteBonus} = ${total}`;
+/** Total e modificadores identificados; Sanidade separa teste/perda e Surto separa opções. */
+function montarCorpoRolagem(grupos: GrupoDados[], bonus: number | undefined, total: number, tipo?: TipoTextoRolagem): string {
+  return textoResultadoRolagem({ grupos, bonus, total, tipo });
 }
 
 /** Mensagem de log padrão pra qualquer rolagem com dado por trás (`EntradaLog.texto`):
@@ -71,15 +68,16 @@ export function formatarLogRolagem(params: {
   total: number;
   sufixo?: string;
 }): string {
-  const corpo = montarCorpoRolagem(params.grupos, params.bonus, params.total);
+  const tipo = /^sanidade(?:\b|:)/i.test(params.tipo) ? 'sanidade' : /^surto(?:\b|:)/i.test(params.tipo) ? 'surto' : undefined;
+  const corpo = montarCorpoRolagem(params.grupos, params.bonus, params.total, tipo).replace(/^(?:sanidade|surto) · /, '');
   const sufixo = params.sufixo ? ` ${params.sufixo}` : '';
   return `${params.quem} - ${params.tipo} - ${corpo}${sufixo}`;
 }
 
 /** Mensagem do aviso de rolagem ao vivo (`RolagemAoVivoPlayer.tsx`), depois que o dado assenta:
  *  "Quem: notação → [d1, d2, ...] + bônus = total" — mesmo corpo do log, sem o campo "tipo". */
-export function formatarHeaderRolagem(params: { quem: string; grupos: GrupoDados[]; bonus?: number; total: number }): string {
-  return `${params.quem}: ${montarCorpoRolagem(params.grupos, params.bonus, params.total)}`;
+export function formatarHeaderRolagem(params: { quem: string; grupos: GrupoDados[]; bonus?: number; total: number; tipo?: TipoTextoRolagem }): string {
+  return `${params.quem}: ${montarCorpoRolagem(params.grupos, params.bonus, params.total, params.tipo)}`;
 }
 
 /**
@@ -190,6 +188,7 @@ export function useDiceBox(
   const boxRef = useRef<DiceBox | null>(null);
   const [ready, setReady] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [falhaRolagem, setFalhaRolagem] = useState(false);
   const [rolando, setRolando] = useState(false);
   /** true quando box.initialize() falhou (sem WebGL, GPU bloqueada, etc.) — rolar() passa a usar
    *  rolarFallback2D em vez de tentar física. A ferramenta continua funcionando, só sem o visual. */
@@ -313,6 +312,7 @@ export function useDiceBox(
       pedido.onComplete(paraGrupos(r));
     } catch (e: unknown) {
       setErro(String(e));
+      setFalhaRolagem(true);
     } finally {
       const proximo = filaRef.current.shift();
       if (proximo) {
@@ -332,10 +332,12 @@ export function useDiceBox(
     tipo: TipoRolagemForcada = 'teste',
   ) => {
     const termos = normalizarTermos(notacao);
+    setErro(null);
+    setFalhaRolagem(false);
     if (modo2D) {
       // sem física rodando, então sem concorrência real pra proteger — resolve na hora (async
       // por dentro só pra poder tentar o servidor primeiro; onComplete dispara quando chegar).
-      void rolarFallback2D(termos, personagemId, resolverRemoto, consumirForcadosFn, tipo).then(onComplete);
+      void rolarFallback2D(termos, personagemId, resolverRemoto, consumirForcadosFn, tipo).then(onComplete).catch((e: unknown) => { setErro(String(e)); setFalhaRolagem(true); });
       return;
     }
     if (!boxRef.current) return;
@@ -360,6 +362,8 @@ export function useDiceBox(
     colorset: ColorsetSpec,
     onComplete: (grupos: GrupoResultado[]) => void,
   ) => {
+    setErro(null);
+    setFalhaRolagem(false);
     if (modo2D) {
       let cursor = 0;
       const grupos: GrupoResultado[] = termos.map((t) => {
@@ -388,5 +392,5 @@ export function useDiceBox(
     void executarRolagem(pedido);
   };
 
-  return { ready, erro, rolando, modo2D, rolar, reproduzir };
+  return { ready, erro, falhaRolagem, rolando, modo2D, rolar, reproduzir };
 }

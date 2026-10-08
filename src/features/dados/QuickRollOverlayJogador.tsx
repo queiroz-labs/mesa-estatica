@@ -3,7 +3,7 @@ import { formatarLogRolagem, normalizarTermos, useDiceBox } from '../../dice/use
 import { resolverRolagemJogador } from '../../multiplayer/rolagemRemota';
 import { calcularPvMaximo, estaFerido } from '../../rules/derivados';
 import { ATRIBUTOS, PERICIAS } from '../../rules/data/pericias';
-import { marcarComoProprio, useRolagemAoVivoStore } from '../../state/rolagemAoVivoStore';
+import { avisarInicioRolagem, marcarComoProprio, useRolagemAoVivoStore } from '../../state/rolagemAoVivoStore';
 import { useStore } from '../../state/store';
 import type { Ficha } from '../../state/types';
 
@@ -54,12 +54,13 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
     personagemId?: Parameters<typeof rolar>[3],
     tipo?: Parameters<typeof rolar>[4],
     bonusRolagem?: number,
+    contexto?: 'livre',
   ) => {
+    const id = avisarInicioRolagem(ficha.nome || 'jogador', ficha.corVisual, tipo ?? 'teste');
     rolar(
       notacao,
       (grupos) => {
         onComplete(grupos);
-        const id = crypto.randomUUID();
         marcarComoProprio(id);
         useRolagemAoVivoStore.getState().definirAtual({
           id,
@@ -70,6 +71,7 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
           origem: ficha.nome || 'jogador',
           tipo: tipo ?? 'teste',
           bonus: bonusRolagem,
+          contexto,
         });
       },
       colorset,
@@ -89,7 +91,7 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
         setResultadoRoll({ d20: valor, modificador: mod, total });
 
         const nome = ficha.nome || 'd20 rápido';
-        const formula = bonus !== 0 ? `d20+${bonus}` : 'd20';
+        const formula = bonus !== 0 ? `d20${bonus > 0 ? '+' : ''}${bonus}` : 'd20';
         registrarLog(
           'teste',
           formatarLogRolagem({ quem: nome, tipo: 'Rolagem Rápida', grupos: [{ notacao: '1d20', resultados: [valor] }], bonus, total }),
@@ -109,6 +111,7 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
       ficha.id,
       undefined,
       bonus || undefined,
+      'livre',
     );
   };
 

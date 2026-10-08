@@ -8,6 +8,7 @@ import { caixasIntersectam, subtrairCaixa } from '../features/mapa/fowGeometria'
 import { calcularExpiraSurto, indiceSurtoPendente, resolverSurto } from '../rules/surto';
 import { inserirNaIniciativa, ordenarIniciativa } from '../rules/teste';
 import { marcarLocalErro, marcarLocalOk } from '../lib/statusMesa';
+import { ehRotaJogador } from '../lib/rotaJogador';
 import { validarTiposEstado } from './validarImportacao';
 import { QUANTIDADE_SLOTS_SOUNDPAD } from './soundpad';
 import { normalizarAmbiencia } from './ambiencia';
@@ -155,14 +156,14 @@ interface Acoes {
    *  `estaMorto` em rules/combate.ts), loga o delta no log da sessão. */
   ajustarPvAtual: (id: string, novoValor: number) => void;
   /** Igual ao PV, mas também detecta cruzamento da linha (→ Trauma) e perda ≥5 de uma vez (→ Surto). */
-  ajustarSanidadeAtual: (id: string, novoValor: number) => AlertaSanidade;
+  ajustarSanidadeAtual: (id: string, novoValor: number, visibilidade?: 'publica' | 'privada') => AlertaSanidade;
   /** Resolve a escolha pendente de um personagem (dois d20 diferentes) com o lado que o mestre escolheu. */
   resolverEscolhaSurtoPendente: (fichaId: string, lado: 'A' | 'B') => void;
   /** Remove um Surto específico (pendente ou já escolhido) de `surtosAtivos` — sem checagem de
    *  "só mestre" aqui dentro (mesmo modelo do resto do store); quem restringe é a UI que chama
    *  (`AtributosDerivadosSection.tsx`, botão só aparece com `souMestre`). */
   removerSurtoAtivo: (fichaId: string, surtoId: string) => void;
-  ajustarDeterminacao: (id: string, novoValor: number) => void;
+  ajustarDeterminacao: (id: string, novoValor: number, visibilidade?: 'publica' | 'privada') => void;
   ajustarDinheiro: (id: string, tipo: 'real' | 'ponto', novoValor: number) => void;
   /** Câmbio entre R$/P$ (regras.md "grana e equipamento") — P$→R$ com cambista desconta 30%;
    *  R$→P$ é 1:1 mas exige justificar origem (mestre decide, a UI só avisa). Debita no máximo o
@@ -345,11 +346,11 @@ const semPersistencia: StateStorage = {
   removeItem: () => {},
 };
 
-/** `jogador.html`/`entries/jogador.tsx` (ver vite.config.ts) — checado por pathname porque
+/** `/jogador` (Pages) ou `jogador.html`/`entries/jogador.tsx` (Vite) — checado por pathname porque
  *  a decisão precisa existir antes de qualquer import estático rodar (ordem de avaliação de
  *  módulos ES não garante que um "flag" setado em código no topo de jogador.tsx rode antes
  *  das dependências transitivas de PlayerApp, que incluem este arquivo). */
-const ehBundleJogador = typeof window !== 'undefined' && window.location.pathname.includes('jogador.html');
+const ehBundleJogador = typeof window !== 'undefined' && ehRotaJogador(window.location.pathname);
 
 /** `localStorage.setItem` do estado inteiro rodava em CADA `set()` — uma tecla digitada
  *  numa ficha, um `pointermove` arrastando um token no mapa, cada um serializando e gravando
@@ -790,7 +791,7 @@ export const useStore = create<Store>()(
         );
       },
 
-      ajustarSanidadeAtual: (id, novoValor) => {
+      ajustarSanidadeAtual: (id, novoValor, visibilidade = 'publica') => {
         const ficha = get().fichas.find((f) => f.id === id);
         if (!ficha) return { cruzouLinhaSanidade: false, surtoDisparado: false };
         const sanidadeMaxima = calcularSanidadeMaxima(ficha.atributos.vontade);
@@ -854,7 +855,7 @@ export const useStore = create<Store>()(
                           modo: s.sessaoPublica.modoCombate ? 'combate' : 'cena',
                         },
                       ],
-                      surtoPendente: { nomeFicha: ficha.nome || 'Personagem', entradaA: resultado.entradaA, entradaB: resultado.entradaB },
+                      surtoPendente: { nomeFicha: ficha.nome || 'Personagem', entradaA: resultado.entradaA, entradaB: resultado.entradaB, visibilidade },
                     }
                   : f,
               ),
@@ -870,8 +871,9 @@ export const useStore = create<Store>()(
           'sanidade',
           `${ficha.nome || 'Personagem'}: Sanidade ${delta > 0 ? '+' : ''}${delta}`,
           id,
+          visibilidade,
         );
-        if (logSurtoImediato) get().registrarLog('surto', logSurtoImediato, id);
+        if (logSurtoImediato) get().registrarLog('surto', logSurtoImediato, id, visibilidade);
         if (delta < 0) get().dispararBurstRuido();
         if (alerta.surtoDisparado) {
           set((s) => ({
@@ -901,6 +903,7 @@ export const useStore = create<Store>()(
           'surto',
           `${pendente.nomeFicha} · Surto · escolhido: ${entrada.nome} — ${entrada.descricao}`,
           fichaId,
+          pendente.visibilidade ?? 'publica',
         );
       },
 
@@ -929,13 +932,13 @@ export const useStore = create<Store>()(
         );
       },
 
-      ajustarDeterminacao: (id, novoValor) => {
+      ajustarDeterminacao: (id, novoValor, visibilidade = 'publica') => {
         const ficha = get().fichas.find((f) => f.id === id);
         if (!ficha) return;
         const valor = Math.max(0, Math.min(novoValor, 2));
         if (valor === ficha.determinacao) return;
         set((s) => ({ fichas: s.fichas.map((f) => (f.id === id ? { ...f, determinacao: valor } : f)) }));
-        get().registrarLog('determinacao', `${ficha.nome || 'Personagem'}: Determinação → ${valor}`, id);
+        get().registrarLog('determinacao', `${ficha.nome || 'Personagem'}: Determinação → ${valor}`, id, visibilidade);
       },
 
       ajustarDinheiro: (id, tipo, novoValor) => {
@@ -1108,6 +1111,7 @@ export const useStore = create<Store>()(
             'iniciativa',
             formatarLogRolagem({ quem: e.nome, tipo: 'Iniciativa', grupos: [{ notacao: '1d20', resultados: [e.d20 ?? 0] }], bonus: e.agilidade, total: e.valor }),
             e.participanteId,
+            e.tipo === 'npc' && !get().npcs.find((n) => n.id === e.participanteId)?.visivel ? 'privada' : 'publica',
           );
         });
       },
@@ -1138,6 +1142,7 @@ export const useStore = create<Store>()(
             'iniciativa',
             formatarLogRolagem({ quem: e.nome, tipo: 'Iniciativa', grupos: [{ notacao: '1d20', resultados: [e.d20 ?? 0] }], bonus: e.agilidade, total: e.valor }),
             e.participanteId,
+            e.tipo === 'npc' && !get().npcs.find((n) => n.id === e.participanteId)?.visivel ? 'privada' : 'publica',
           );
         });
       },
@@ -1166,6 +1171,7 @@ export const useStore = create<Store>()(
             'iniciativa',
             formatarLogRolagem({ quem: e.nome, tipo: 'Iniciativa', grupos: [{ notacao: '1d20', resultados: [d20] }], bonus: maiorAgilidade, total: valor }),
             e.participanteId,
+            !get().npcs.find((n) => n.id === e.participanteId)?.visivel ? 'privada' : 'publica',
           );
         });
       },
@@ -1178,14 +1184,21 @@ export const useStore = create<Store>()(
         const agilidade = ficha?.atributos.agilidade ?? npc?.agilidade ?? 0;
         const d20 = rolarDadoComForcados(20, participanteId, 'iniciativa');
         const novoValor = d20 + agilidade;
-        const reordenada = s.iniciativa
-          .map((e) => (e.participanteId === participanteId ? { ...e, valor: novoValor, d20, agilidade } : e))
-          .sort((a, b) => b.valor - a.valor);
+        const atualizadas = s.iniciativa
+          .map((e) => (e.participanteId === participanteId ? { ...e, valor: novoValor, d20, agilidade } : e));
+        const reordenada = ordenarIniciativa(atualizadas.map((e) => {
+          const agilidadeAplicada = e.agilidade
+            ?? s.fichas.find((f) => f.id === e.participanteId)?.atributos.agilidade
+            ?? s.npcs.find((n) => n.id === e.participanteId)?.agilidade ?? 0;
+          // Só auxilia a ordenação: entradas legadas não ganham um d20 inventado na UI.
+          return { entrada: e, id: e.id, d20: e.valor - agilidadeAplicada, agilidade: agilidadeAplicada };
+        })).map((p) => p.entrada);
         set({ iniciativa: reordenada });
         get().registrarLog(
           'iniciativa',
           formatarLogRolagem({ quem: entrada.nome, tipo: 'Iniciativa', grupos: [{ notacao: '1d20', resultados: [d20] }], bonus: agilidade, total: novoValor }),
           participanteId,
+          entrada.tipo === 'npc' && !npc?.visivel ? 'privada' : 'publica',
         );
       },
       removerDaIniciativa: (id) =>

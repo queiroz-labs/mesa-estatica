@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { rolarDadoComForcados } from '../dice/registroForcados';
 import { formatarLogRolagem } from '../dice/useDiceBox';
-import { podeUsarPrimeirosSocorros, registrarUsoPrimeirosSocorros, resolverEstabilizar } from '../rules/combate';
+import { calcularEstadoTokenCombate, podeUsarPrimeirosSocorros, registrarUsoPrimeirosSocorros, resolverEstabilizar } from '../rules/combate';
 import { calcularDefesa, calcularPvMaximo, estaFerido } from '../rules/derivados';
 import { useCombateUiStore } from '../state/combateUiStore';
 import { useStore } from '../state/store';
@@ -188,6 +188,24 @@ export function useIniciativa() {
   const toggleSelecionadoAplicar = toggleSelecionadoAplicarUi;
   const limparSelecaoAplicar = limparSelecaoAplicarUi;
 
+  const adiarIniciativa = (entradaId: string) => {
+    const atual = useStore.getState();
+    const indice = atual.iniciativa.findIndex((e) => e.id === entradaId);
+    if (indice < 0 || indice === atual.iniciativa.length - 1) return;
+    const entrada = atual.iniciativa[indice];
+    const proximoId = atual.iniciativa[indice + 1].id;
+    atual.reordenarIniciativa(indice, atual.iniciativa.length - 1);
+    // Adiar a própria vez não encerra sua ação: os demais continuam nesta rodada e quem
+    // adiou age no fim. O próximo normal decrementa as condições só depois dessa ação.
+    if (atual.sessaoPublica.modoCombate && atual.sessaoPublica.turnoAtualId === entradaId) {
+      atual.atualizarSessaoPublica({ turnoAtualId: proximoId });
+    }
+    if (!(atual.sessaoPublica.condicoesCombate[entrada.participanteId] ?? []).includes('aguardando')) {
+      atual.alternarCondicaoCombate(entrada.participanteId, 'aguardando');
+    }
+    atual.definirDuracaoCondicao(entrada.participanteId, 'aguardando', 1);
+  };
+
   /** Dano (delta negativo) ou ajuste (delta positivo — nunca "cura": regras.md "não existe
    *  cura em combate", o app só corrige erro de digitação; a única exceção sancionada é
    *  Primeiros Socorros — `tentarPrimeirosSocorros`, ação própria com teste e trava
@@ -195,18 +213,19 @@ export function useIniciativa() {
    *  1 clique em vez de 1 por alvo — é a granada em 4 combatentes virando 1 ação, não 40. */
   const aplicarDanoEmMassa = (delta: number) => {
     if (selecionadosAplicar.size === 0 || delta === 0) return;
-    const nomes: string[] = [];
+    const nomesPublicos: string[] = [];
+    const nomesOcultos: string[] = [];
     for (const e of iniciativa) {
       if (!selecionadosAplicar.has(e.participanteId)) continue;
       const pv = pvDoCombatente(e.participanteId, e.tipo);
       if (!pv) continue;
       pv.aplicar(delta);
-      nomes.push(e.nome);
+      const oculto = e.tipo === 'npc' && !npcs.find((n) => n.id === e.participanteId)?.visivel;
+      (oculto ? nomesOcultos : nomesPublicos).push(e.nome);
     }
-    if (nomes.length > 0) {
-      const sinal = delta > 0 ? '+' : '';
-      registrarLog('dano', `dano em área — ${nomes.join(', ')}: ${sinal}${delta} PV`, null);
-    }
+    const sinal = delta > 0 ? '+' : '';
+    if (nomesPublicos.length > 0) registrarLog('dano', `dano em área — ${nomesPublicos.join(', ')}: ${sinal}${delta} PV`, null, 'publica');
+    if (nomesOcultos.length > 0) registrarLog('dano', `dano em área — ${nomesOcultos.join(', ')}: ${sinal}${delta} PV`, null, 'privada');
   };
 
   // sem log — mesmo comportamento do toggle individual (`alternarCondicaoCombate`): lembrete
@@ -227,6 +246,10 @@ export function useIniciativa() {
    *  condição 'estavel' (lembrete visual — acorda com 1 PV no fim da cena, o mestre aplica na
    *  hora certa); falha só fica no log, o jogador tenta de novo depois. */
   const tentarEstabilizar = (alvoId: string) => {
+    const alvo = iniciativa.find((e) => e.participanteId === alvoId);
+    const pv = alvo && pvDoCombatente(alvoId, alvo.tipo);
+    const condicoes = useStore.getState().sessaoPublica.condicoesCombate[alvoId] ?? [];
+    if (!pv || pv.atual > 0 || condicoes.includes('estavel') || calcularEstadoTokenCombate(pv.atual, pv.maximo, condicoes).morto) return;
     const socorristaId = socorristaPorAlvo[alvoId];
     const socorrista = fichas.find((f) => f.id === socorristaId);
     if (!socorrista) return;
@@ -274,6 +297,9 @@ export function useIniciativa() {
     if (!socorrista) return;
     const alvo = iniciativa.find((e) => e.participanteId === alvoId);
     if (!alvo) return;
+    const pv = pvDoCombatente(alvoId, alvo.tipo);
+    const condicoes = useStore.getState().sessaoPublica.condicoesCombate[alvoId] ?? [];
+    if (!pv || pv.atual <= 0 || calcularEstadoTokenCombate(pv.atual, pv.maximo, condicoes).morto) return;
     const pvMaximoSocorrista = calcularPvMaximo(basePV, socorrista.atributos.vigor);
     const ferido = estaFerido(socorrista.pvAtual, pvMaximoSocorrista);
     const grauMedicina = socorrista.pericias['medicina'] ?? 0;
@@ -315,6 +341,7 @@ export function useIniciativa() {
     condicoesCombate, condicaoDuracao, definirDuracaoCondicao, fichas, npcs, basePV,
     selecionadosIniciativa,
     removerDaIniciativa, reordenarIniciativa, rerolarIniciativaDe,
+    adiarIniciativa,
     iniciarModoCombate, avancarTurno, voltarTurno, encerrarModoCombate,
     alternarCondicaoCombate,
     participantesDisponiveis, disponiveis, todosSelecionados, nenhumSelecionado, adicionarDisponiveis,

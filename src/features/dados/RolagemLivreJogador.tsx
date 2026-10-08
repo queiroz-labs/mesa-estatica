@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { formatarLogRolagem, type GrupoDados, type RollGroupResult, type RollTermo } from '../../dice/useDiceBox';
 import { useStore } from '../../state/store';
+import type { ColorsetId } from '../../dice/colorsets';
+import type { TipoRolagemForcada } from '../../dice/registroForcados';
+import ResultadoLivre from './ResultadoLivre';
+import { criarResultadoLivreDetalhado, formulaLivreComAjuste, type ResultadoLivreDetalhado } from './resultadoLivreApresentacao';
 
 const TODAS_AS_FACES = [4, 6, 8, 10, 12, 20, 100];
 
@@ -17,7 +21,10 @@ function termoVazio(faces = 20): Termo {
 interface RolagemLivreJogadorProps {
   fichaId: string;
   ready: boolean;
-  rolar: (notacao: RollTermo[], onComplete: (r: RollGroupResult[]) => void) => void;
+  rolar: (
+    notacao: RollTermo[], onComplete: (r: RollGroupResult[]) => void,
+    colorset?: ColorsetId, personagemId?: string | null, tipo?: TipoRolagemForcada, bonus?: number,
+  ) => void;
 }
 
 export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLivreJogadorProps) {
@@ -28,7 +35,7 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
 
   const [bonus, setBonus] = useState(0);
   const [termos, setTermos] = useState<Termo[]>([termoVazio()]);
-  const [grupos, setGrupos] = useState<RollGroupResult[] | null>(null);
+  const [resultado, setResultado] = useState<ResultadoLivreDetalhado | null>(null);
   const [rolando, setRolando] = useState(false);
 
   const podeRolar = ready && !rolando;
@@ -42,10 +49,10 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
 
   const rolarCombinado = () => {
     setRolando(true);
-    setGrupos(null);
+    setResultado(null);
     const notacao: RollTermo[] = termos.map((t) => ({ sides: t.faces, qty: t.quantidade }));
     rolar(notacao, (resultados) => {
-      setGrupos(resultados);
+      setResultado(criarResultadoLivreDetalhado(fichaNome || 'Personagem', resultados, bonus));
       setRolando(false);
 
       const total = resultados.reduce((soma, g) => soma + g.value, 0);
@@ -62,15 +69,14 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
       registrarRoll({
         origem: fichaNome || 'Rolagem livre',
         personagemId: fichaId,
-        formula: `${notacaoTexto}${bonus !== 0 ? `+${bonus}` : ''}`,
+        formula: formulaLivreComAjuste(notacaoTexto, bonus),
         total: totalComBonus,
         bruto: total,
         visibilidade: 'publica',
       });
-    });
+    }, undefined, fichaId, 'qualquer', bonus || undefined);
   };
 
-  const totalGeral = grupos?.reduce((soma, g) => soma + g.value, 0) ?? null;
   const notacaoTexto = termos.map((t) => `${t.quantidade}d${t.faces}`).join(' + ');
 
   return (
@@ -79,7 +85,7 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
 
       <div className="campos-grid" style={{ gridTemplateColumns: '1fr', marginTop: '0.5rem' }}>
         <div>
-          <label htmlFor="rlj-bonus">Bônus</label>
+          <label htmlFor="rlj-bonus">Ajuste (+ bônus / − penalidade)</label>
           <input
             id="rlj-bonus"
             type="number"
@@ -131,15 +137,7 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
         </button>
       </div>
 
-      {grupos && (
-        <div className="alerta-banner mono" style={{ marginTop: '0.75rem', borderColor: 'var(--rede)', color: 'var(--rede)' }}>
-          <span>
-            {grupos.map((g) => `${g.qty}d${g.sides} → ${g.value} [${g.rolls.map((r) => r.value).join(', ')}]`).join(' · ')}
-            {grupos.length > 1 && ` · total ${totalGeral}`}
-            {bonus !== 0 && ` + bônus ${bonus} = ${(totalGeral ?? 0) + bonus}`}
-          </span>
-        </div>
-      )}
+      {resultado && <ResultadoLivre resultado={resultado} />}
     </section>
   );
 }

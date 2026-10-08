@@ -6,6 +6,8 @@ import { calcularPvMaximo, estaFerido } from '../../rules/derivados';
 import { ATRIBUTOS, PERICIAS } from '../../rules/data/pericias';
 import { useStore } from '../../state/store';
 import type { Ficha } from '../../state/types';
+import ResultadoTeste from './ResultadoTeste';
+import { criarResultadoTesteDetalhado, type ResultadoTesteDetalhado } from './resultadoTesteApresentacao';
 
 interface Props {
   ficha: Ficha;
@@ -33,7 +35,7 @@ export default function RoladorTesteJogador({ ficha, ready, rolar }: Props) {
   const atualizarFicha = useStore((s) => s.atualizarFicha);
 
   const [periciaId, setPericiaId] = useState(PERICIAS[0].id);
-  const [resultado, setResultado] = useState<{ d20: number; modificador: number; total: number } | null>(null);
+  const [resultado, setResultado] = useState<ResultadoTesteDetalhado | null>(null);
   const [rolando, setRolando] = useState(false);
 
   const pericia = PERICIAS.find((p) => p.id === periciaId)!;
@@ -58,7 +60,11 @@ export default function RoladorTesteJogador({ ficha, ready, rolar }: Props) {
       '1d20',
       (grupos) => {
         const d20 = grupos[0]?.rolls[0]?.value ?? 0;
-        setResultado({ d20, modificador, total: d20 + modificador });
+        setResultado(criarResultadoTesteDetalhado(ficha.nome || 'Personagem', pericia.nome, d20, [
+          { rotulo: atributo.nome, valor: ficha.atributos[pericia.atributo] },
+          { rotulo: pericia.nome, valor: grauPericia },
+          { rotulo: 'ferido', valor: penalidadeFerido },
+        ]));
         setRolando(false);
 
         const nome = ficha.nome || 'Personagem';
@@ -142,14 +148,7 @@ export default function RoladorTesteJogador({ ficha, ready, rolar }: Props) {
         </button>
       </div>
 
-      {resultado && (
-        <div className="alerta-banner mono" style={{ marginTop: '0.75rem' }}>
-          <span>
-            d20={resultado.d20} {resultado.modificador >= 0 ? '+' : ''}
-            {resultado.modificador} = {resultado.total}
-          </span>
-        </div>
-      )}
+      {resultado && <ResultadoTeste resultado={resultado} />}
     </section>
   );
 }

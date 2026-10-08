@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { IconePause, IconePlay } from '../combate/icones';
-import { calcularPosicaoEsperada } from '../../multiplayer/posicaoMidia';
+import { calcularPosicaoMidia } from '../../multiplayer/posicaoMidia';
 import { marcarRemocaoExplicita } from '../../multiplayer/remocaoExplicita';
 import { deletarR2, isUrlSupabaseStorage, uploadR2 } from '../../multiplayer/uploadR2';
 import { useMidiaUiStore } from '../../state/midiaUiStore';
@@ -53,15 +53,15 @@ export default function MidiaTab() {
   // relógio local só pra exibição do tempo decorrido — a posição real vive em midia.posicaoSegundos.
   useEffect(() => {
     if (!midia.tocando) {
-      setPosicaoExibida(midia.posicaoSegundos);
+      setPosicaoExibida(calcularPosicaoMidia(midia, duracao));
       return;
     }
-    const atualizar = () => setPosicaoExibida(calcularPosicaoEsperada(midia));
+    const atualizar = () => setPosicaoExibida(calcularPosicaoMidia(midia, duracao));
     atualizar();
     const intervalo = setInterval(atualizar, 500);
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [midia.tocando, midia.posicaoSegundos, midia.atualizadoEm]);
+  }, [midia.tocando, midia.posicaoSegundos, midia.atualizadoEm, midia.modoLoop, duracao]);
 
   const importarArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = e.target.files?.[0];
@@ -112,7 +112,7 @@ export default function MidiaTab() {
     // manda a posição real junto — sem isso, `atualizadoEm` recarimba e `MidiaPlayerGM`
     // resincroniza `audio.currentTime` pro `posicaoSegundos` velho (parado desde o último
     // seek), fazendo a faixa voltar pro início ao pausar.
-    atualizarEstadoMidia({ tocando: !midia.tocando, posicaoSegundos: calcularPosicaoEsperada(midia) });
+    atualizarEstadoMidia({ tocando: !midia.tocando, posicaoSegundos: calcularPosicaoMidia(midia, duracao) });
   };
 
   const ir = (direcao: 'proxima' | 'anterior') => {
@@ -124,7 +124,7 @@ export default function MidiaTab() {
   };
 
   const pular = (deltaSegundos: number) => {
-    const novaPosicao = Math.max(0, posicaoExibida + deltaSegundos);
+    const novaPosicao = Math.min(duracao, Math.max(0, calcularPosicaoMidia(midia, duracao) + deltaSegundos));
     setPosicaoExibida(novaPosicao);
     atualizarEstadoMidia({ posicaoSegundos: novaPosicao });
   };
@@ -180,10 +180,10 @@ export default function MidiaTab() {
           <button onClick={() => ir('proxima')} disabled={ordenadas.length === 0}>
             próxima ››
           </button>
-          <button onClick={() => pular(-10)} disabled={!faixaAtual} title="voltar 10s">
+          <button onClick={() => pular(-10)} disabled={!faixaAtual || duracao === 0} title="voltar 10s">
             −10s
           </button>
-          <button onClick={() => pular(10)} disabled={!faixaAtual} title="avançar 10s">
+          <button onClick={() => pular(10)} disabled={!faixaAtual || duracao === 0} title="avançar 10s">
             +10s
           </button>
           <div style={{ flex: 1 }} />

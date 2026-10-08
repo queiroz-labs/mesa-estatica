@@ -2,14 +2,13 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 import { assinarStatusCanal, desconectarCanal, useStatusMesa } from '../lib/statusMesa';
 import { useReguasStore, type ReguaViva } from '../state/reguasStore';
-import { criarDebouncePorChave } from './debounce';
+import { criarThrottlePorChave } from './debounce';
 import { executarComRetentativa, retomarPendenciasPersistidas } from './filaPendencias';
 import { ehReguaViva } from './validarPayload';
 
-/** Mais curto que o de tokens (`tokensSync.ts` usa 150ms) — a régua é feedback ao vivo de uma
- *  medição em andamento, não uma posição que se assenta; quanto menor o atraso, mais junto do
- *  cursor de quem mede a linha aparece pros outros. */
-const ATRASO_PUSH_MS = 80;
+/** Intervalo entre pontos de um movimento contínuo. O primeiro é enviado imediatamente;
+ *  os seguintes levam sempre a posição mais recente, sem esperar o cursor parar. */
+const INTERVALO_PUSH_MS = 80;
 
 /**
  * Sincroniza a régua de medição via Supabase Realtime **broadcast**, não tabela — a régua vive
@@ -67,10 +66,14 @@ export function iniciarSyncReguas(): () => void {
 
   canalAtivo = canal;
 
-  const enviarAgora = (_id: string, regua: ReguaViva) => {
-    void canal.send({ type: 'broadcast', event: 'regua', payload: { regua } });
+  let encerrado = false;
+  const enviarAgora = (id: string) => {
+    // O tick pode chegar depois de pointerup/Esc: reler evita ressuscitar uma
+    // medição ativa antiga depois que o fim já foi entregue aos outros clientes.
+    const regua = useReguasStore.getState().reguas[id];
+    if (!encerrado && regua?.ativa) void canal.send({ type: 'broadcast', event: 'regua', payload: { regua } });
   };
-  const agendarEnvio = criarDebouncePorChave<ReguaViva>(ATRASO_PUSH_MS, enviarAgora);
+  const agendarEnvio = criarThrottlePorChave<ReguaViva>(INTERVALO_PUSH_MS, enviarAgora);
 
   // `canal.send` com `ack:false` não devolve erro observável — o gatilho de "falhou" aqui é
   // `online === false` no momento do envio, não a resposta do `send`. Só o envio GARANTIDO de
@@ -89,9 +92,10 @@ export function iniciarSyncReguas(): () => void {
 
   let reguasAnteriores = useReguasStore.getState().reguas;
   const unsubscribeLocal = useReguasStore.subscribe((state) => {
-    if (aplicandoRemoto || state.reguas === reguasAnteriores) return;
+    if (state.reguas === reguasAnteriores) return;
     const anteriores = reguasAnteriores;
     reguasAnteriores = state.reguas;
+    if (aplicandoRemoto) return;
 
     for (const [id, regua] of Object.entries(state.reguas)) {
       if (anteriores[id] === regua) continue;
@@ -111,6 +115,7 @@ export function iniciarSyncReguas(): () => void {
   }
 
   return () => {
+    encerrado = true;
     unsubscribeLocal();
     desconectarCanal('reguas');
     cliente.removeChannel(canal);

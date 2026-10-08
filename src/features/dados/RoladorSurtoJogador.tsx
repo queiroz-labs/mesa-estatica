@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { ColorsetId } from '../../dice/colorsets';
 import type { TipoRolagemForcada } from '../../dice/registroForcados';
-import { formatarLogRolagem, type RollGroupResult, type RollTermo } from '../../dice/useDiceBox';
+import type { RollGroupResult, RollTermo } from '../../dice/useDiceBox';
 import { calcularExpiraSurto, escolhaSurtoPorId, resolverSurto, type ResultadoSurto } from '../../rules/surto';
 import { useStore } from '../../state/store';
 import type { Ficha } from '../../state/types';
+import { textoDadosSurto, textoDuracaoSurto } from './resultadosEspeciais';
 
 interface Props {
   ficha: Ficha;
@@ -35,7 +36,7 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
   const [rolando, setRolando] = useState(false);
   // `surtoId` é o id da entrada criada em `surtosAtivos` por ESTE roll — usado depois pra achar
   // a escolha de verdade gravada na ficha (ver `escolhaConfirmada` abaixo), não só um flag local.
-  const [resultado, setResultado] = useState<(ResultadoSurto & { surtoId: string }) | null>(null);
+  const [resultado, setResultado] = useState<(ResultadoSurto & { surtoId: string; duracao: string }) | null>(null);
   // `surtoPendente` mora na própria ficha (sincroniza por `characters_privado`, mestre+dono) —
   // não só um estado local. Sem isso, resolver a escolha por outro caminho (a própria ficha,
   // na aba Personagens) não avisava este rolador: `resultado` local continuava com o roll
@@ -62,7 +63,9 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
         const [d20A, d20B] = grupos[0].rolls.map((r) => r.value);
         const r = resolverSurto(d20A, d20B);
         const surtoId = crypto.randomUUID();
-        setResultado({ ...r, surtoId });
+        const expiraEm = calcularExpiraSurto(sessaoPublica);
+        const duracao = textoDuracaoSurto(sessaoPublica.modoCombate, sessaoPublica.rodada, expiraEm);
+        setResultado({ ...r, surtoId, duracao });
         setRolando(false);
         dispararBurstRuido();
         if (r.mesmoNumero) {
@@ -71,7 +74,7 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
               ...(ficha.surtosAtivos ?? []),
               {
                 id: surtoId,
-                expiraEm: calcularExpiraSurto(sessaoPublica),
+                expiraEm,
                 escolha: r.entradaA.nome,
                 modo: sessaoPublica.modoCombate ? 'combate' : 'cena',
               },
@@ -79,13 +82,7 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
           });
           registrarLog(
             'surto',
-            formatarLogRolagem({
-              quem: ficha.nome || 'Personagem',
-              tipo: 'Surto',
-              grupos: [{ notacao: '2d20', resultados: [d20A, d20B] }],
-              total: d20A,
-              sufixo: `· o destino insiste: ${r.entradaA.nome} — ${r.entradaA.descricao}`,
-            }),
+            `${ficha.nome || 'Personagem'} · surto · ${textoDadosSurto(d20A, d20B)} · o destino insiste: ${r.entradaA.nome} — ${r.entradaA.descricao} · ${duracao}`,
             ficha.id,
             'publica',
           );
@@ -95,7 +92,7 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
               ...(ficha.surtosAtivos ?? []).filter((s) => s.escolha !== null),
               {
                 id: surtoId,
-                expiraEm: calcularExpiraSurto(sessaoPublica),
+                expiraEm,
                 escolha: null,
                 modo: sessaoPublica.modoCombate ? 'combate' : 'cena',
               },
@@ -115,12 +112,12 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
   const escolher = (lado: 'A' | 'B') => {
     if (!resultado) return;
     resolverEscolhaSurtoPendente(ficha.id, lado);
-    registrarLog('surto', `${ficha.nome || 'Personagem'} · escolheu lado ${lado} do surto`, ficha.id, 'publica');
   };
 
   return (
     <section className="secao">
       <h3 className="label">Rolador de Surto</h3>
+      <p className="vazio">cada d20 indica um efeito da tabela. Escolha um deles; números iguais tornam esse efeito obrigatório. Dura até o fim da cena ou 1d4+1 rodadas em combate.</p>
 
       <button className="perigo" disabled={!ready || rolando} onClick={rolarSurto}>
         rolar surto (2d20)
@@ -129,13 +126,15 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
       {resultado && resultado.mesmoNumero && (
         <div className="alerta-banner mono" style={{ marginTop: '0.75rem' }}>
           <span>
-            d20={resultado.d20A}/{resultado.d20B} — o destino insiste: <strong>{resultado.entradaA.nome}</strong> —{' '}
+            {textoDadosSurto(resultado.d20A, resultado.d20B)} · o destino insiste: <strong>{resultado.entradaA.nome}</strong> —{' '}
             {resultado.entradaA.descricao}
           </span>
         </div>
       )}
 
       {resultado && !resultado.mesmoNumero && (pendente || escolhaConfirmada) && (
+        <>
+        <p className="mono">{textoDadosSurto(resultado.d20A, resultado.d20B)}</p>
         <div className="campos-grid" style={{ marginTop: '0.75rem' }}>
           {(['A', 'B'] as const).map((lado) => {
             const entrada = lado === 'A' ? resultado.entradaA : resultado.entradaB;
@@ -153,7 +152,7 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
                 }}
               >
                 <span>
-                  d20={d20} — <strong>{entrada.nome}</strong>
+                  opção {lado} · d20 {d20}: <strong>{entrada.nome}</strong>
                 </span>
                 <span style={{ fontFamily: 'var(--font-body)' }}>{entrada.descricao}</span>
                 <button className="acento" onClick={() => escolher(lado)} disabled={!!escolhaConfirmada}>
@@ -163,7 +162,9 @@ export default function RoladorSurtoJogador({ ficha, ready, rolar }: Props) {
             );
           })}
         </div>
+        </>
       )}
+      {resultado && <p className="vazio">{resultado.duracao}</p>}
     </section>
   );
 }

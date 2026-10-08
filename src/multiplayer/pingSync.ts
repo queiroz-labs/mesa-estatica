@@ -46,13 +46,14 @@ export function iniciarSyncPing(): () => void {
   // do nascimento até expirar), então basta olhar quais ids apareceram desde o diff anterior.
   let idsAnteriores = new Set(Object.keys(usePingsStore.getState().pings));
   const unsubscribeLocal = usePingsStore.subscribe((state) => {
-    if (aplicandoRemoto) return;
     const idsAtuais = new Set(Object.keys(state.pings));
+    const anteriores = idsAnteriores;
+    idsAnteriores = idsAtuais;
+    if (aplicandoRemoto) return;
     for (const id of idsAtuais) {
-      if (idsAnteriores.has(id)) continue;
+      if (anteriores.has(id)) continue;
       void canal.send({ type: 'broadcast', event: 'ping', payload: { ping: state.pings[id] } });
     }
-    idsAnteriores = idsAtuais;
   });
 
   return () => {

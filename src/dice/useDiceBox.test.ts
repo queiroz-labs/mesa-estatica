@@ -106,7 +106,7 @@ describe('formatarLogRolagem', () => {
   it('um grupo, sem bônus', () => {
     expect(
       formatarLogRolagem({ quem: 'Arthur', tipo: 'Ataque: Faca', grupos: [{ notacao: '1d20', resultados: [11] }], total: 11 }),
-    ).toBe('Arthur - Ataque: Faca - 1d20 → [11] = 11');
+    ).toBe('Arthur - Ataque: Faca - total 11 · 1d20 [11]');
   });
 
   it('um grupo, com bônus positivo', () => {
@@ -114,25 +114,25 @@ describe('formatarLogRolagem', () => {
       formatarLogRolagem({
         quem: 'Arthur', tipo: 'Teste de Perícia: Atletismo', grupos: [{ notacao: '1d20', resultados: [14] }], bonus: 2, total: 16,
       }),
-    ).toBe('Arthur - Teste de Perícia: Atletismo - 1d20 → [14] + 2 = 16');
+    ).toBe('Arthur - Teste de Perícia: Atletismo - total 16 · 1d20 [14] + modificador 2');
   });
 
   it('bônus negativo', () => {
     expect(
       formatarLogRolagem({ quem: 'Arthur', tipo: 'Teste', grupos: [{ notacao: '1d20', resultados: [10] }], bonus: -3, total: 7 }),
-    ).toBe('Arthur - Teste - 1d20 → [10] + -3 = 7');
+    ).toBe('Arthur - Teste - total 7 · 1d20 [10] − modificador 3');
   });
 
   it('bônus 0 explícito: omite o "+ 0", igual a bônus ausente', () => {
     expect(
       formatarLogRolagem({ quem: 'Arthur', tipo: 'Teste', grupos: [{ notacao: '1d20', resultados: [14] }], bonus: 0, total: 14 }),
-    ).toBe('Arthur - Teste - 1d20 → [14] = 14');
+    ).toBe('Arthur - Teste - total 14 · 1d20 [14]');
   });
 
   it('múltiplos dados no mesmo grupo (dano 2d6)', () => {
     expect(
       formatarLogRolagem({ quem: 'Arthur', tipo: 'Dano: Machado', grupos: [{ notacao: '2d6', resultados: [4, 6] }], total: 10 }),
-    ).toBe('Arthur - Dano: Machado - 2d6 → [4, 6] = 10');
+    ).toBe('Arthur - Dano: Machado - total 10 · 2d6 [4, 6]');
   });
 
   it('múltiplos grupos (combo — ex.: Sanidade)', () => {
@@ -142,7 +142,7 @@ describe('formatarLogRolagem', () => {
         grupos: [{ notacao: '1d20', resultados: [14] }, { notacao: '1d4', resultados: [3] }],
         total: 14,
       }),
-    ).toBe('Arthur - Sanidade: Perturbador - 1d20 + 1d4 → [14, 3] = 14');
+    ).toBe('Arthur - Sanidade: Perturbador - teste de Vontade: 14 (d20 14) · perda rolada: 3 · o mestre confirma a perda');
   });
 
   it('múltiplos grupos com bônus (dano corpo a corpo + Vigor)', () => {
@@ -152,7 +152,7 @@ describe('formatarLogRolagem', () => {
         grupos: [{ notacao: '1d6', resultados: [4] }, { notacao: 'Vigor', resultados: [5] }],
         total: 9,
       }),
-    ).toBe('Arthur - Dano: Faca - 1d6 + Vigor → [4, 5] = 9');
+    ).toBe('Arthur - Dano: Faca - total 9 · 1d6 [4] + Vigor 5');
   });
 
   it('sufixo narrativo, com espaçamento correto', () => {
@@ -160,7 +160,7 @@ describe('formatarLogRolagem', () => {
       formatarLogRolagem({
         quem: 'Arthur', tipo: 'Trauma: Ruína', grupos: [{ notacao: '1d20', resultados: [16] }], total: 16, sufixo: '· segura',
       }),
-    ).toBe('Arthur - Trauma: Ruína - 1d20 → [16] = 16 · segura');
+    ).toBe('Arthur - Trauma: Ruína - total 16 · 1d20 [16] · segura');
   });
 
   it('sem sufixo: nenhum espaço sobrando no final', () => {
@@ -174,20 +174,20 @@ describe('formatarHeaderRolagem', () => {
   // depois que o dado assenta — ex.: "Helena está rolando…" → "Helena: 1d20 → [4] = 4".
   it('um grupo, sem bônus', () => {
     expect(formatarHeaderRolagem({ quem: 'Helena', grupos: [{ notacao: '1d20', resultados: [4] }], total: 4 })).toBe(
-      'Helena: 1d20 → [4] = 4',
+      'Helena: total 4 · 1d20 [4]',
     );
   });
 
   it('um grupo, com bônus', () => {
     expect(
       formatarHeaderRolagem({ quem: 'Helena', grupos: [{ notacao: '1d20', resultados: [5] }], bonus: 2, total: 7 }),
-    ).toBe('Helena: 1d20 → [5] + 2 = 7');
+    ).toBe('Helena: total 7 · 1d20 [5] + modificador 2');
   });
 
-  it('múltiplos grupos, sem bônus (ex: surto 2d20)', () => {
+  it('rolagem livre de 2d20 pode somar os dados quando não é Surto', () => {
     expect(
       formatarHeaderRolagem({ quem: 'Helena', grupos: [{ notacao: '2d20', resultados: [10, 15] }], total: 25 }),
-    ).toBe('Helena: 2d20 → [10, 15] = 25');
+    ).toBe('Helena: total 25 · 2d20 [10, 15]');
   });
 
   it('múltiplos grupos com bônus', () => {
@@ -195,7 +195,7 @@ describe('formatarHeaderRolagem', () => {
       formatarHeaderRolagem({
         quem: 'Helena', grupos: [{ notacao: '1d20', resultados: [12] }, { notacao: '1d4', resultados: [3] }], bonus: 1, total: 16,
       }),
-    ).toBe('Helena: 1d20 + 1d4 → [12, 3] + 1 = 16');
+    ).toBe('Helena: total 16 · 1d20 [12] + 1d4 [3] + modificador 1');
   });
 });
 

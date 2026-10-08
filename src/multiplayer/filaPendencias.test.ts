@@ -5,6 +5,7 @@ import {
   gravarPendencias,
   instalarRetentativaAutomatica,
   lerPendenciasPersistidas,
+  marcarEmVoo,
   registrarPendencia,
   resolverPendencia,
   retomarPendenciasPersistidas,
@@ -188,6 +189,27 @@ describe('filaPendencias', () => {
     });
 
     afterEach(() => vi.unstubAllGlobals());
+
+    it('marcar a mesma chave durante cada pointermove grava o metadado só uma vez', () => {
+      for (let i = 0; i < 60; i++) marcarEmVoo('tokens-sync', 'abc');
+      expect(storageFalso.setItem).toHaveBeenCalledTimes(1);
+      expect(retomarPendenciasPersistidas('tokens-sync')).toEqual(['abc']);
+    });
+
+    it('confirmação antiga preserva metadado e retry até a versão mais recente confirmar', async () => {
+      let aguardando = true;
+      registrarPendencia('tokens-sync', 'abc', () => {});
+      const executar = vi.fn().mockResolvedValue({ error: null });
+      executarComRetentativa('tokens-sync', 'abc', executar, { aguardandoConfirmacao: () => aguardando });
+      await vi.waitFor(() => expect(executar).toHaveBeenCalledTimes(1));
+      expect(JSON.parse(storageFalso.getItem('estatica-em-voo-v1')!)).toEqual(['tokens-sync:abc']);
+      expect(usePendenciasStore.getState().itens).toEqual([{ modulo: 'tokens-sync', chave: 'abc' }]);
+
+      aguardando = false;
+      executarComRetentativa('tokens-sync', 'abc', executar, { aguardandoConfirmacao: () => aguardando });
+      await vi.waitFor(() => expect(usePendenciasStore.getState().itens).toEqual([]));
+      expect(JSON.parse(storageFalso.getItem('estatica-em-voo-v1')!)).toEqual([]);
+    });
 
     it('marca em voo antes de chamar executar, e desmarca ao suceder — sem nunca aparecer na fila visível', async () => {
       let resolver!: (r: { error: null }) => void;

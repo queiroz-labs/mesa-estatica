@@ -1,7 +1,8 @@
-import { normalizarTermos, useDiceBox } from '../../dice/useDiceBox';
+import { Fragment, useRef, useState } from 'react';
+import { normalizarTermos, useDiceBox, type RollGroupResult } from '../../dice/useDiceBox';
 import { useReproduzirRolagemAoVivo } from '../../dice/useReproduzirRolagemAoVivo';
 import { resolverRolagemJogador } from '../../multiplayer/rolagemRemota';
-import { marcarComoProprio, useRolagemAoVivoStore } from '../../state/rolagemAoVivoStore';
+import { avisarInicioRolagem, marcarComoProprio, useRolagemAoVivoStore } from '../../state/rolagemAoVivoStore';
 import type { Ficha } from '../../state/types';
 import FeedRolagensJogador from './FeedRolagensJogador';
 import RoladorSanidadeJogador from './RoladorSanidadeJogador';
@@ -28,8 +29,10 @@ interface Props {
  * perda) — ver comentário em `RoladorSanidadeJogador.tsx`.
  */
 export default function DadosTabJogador({ ficha, active = true, pedidoRapidoSanidade }: Props) {
-  const { ready, rolando, erro, modo2D, rolar, reproduzir } = useDiceBox('dice-bandeja-jogador', active, 100, resolverRolagemJogador);
+  const { ready, rolando, erro, falhaRolagem, modo2D, rolar, reproduzir } = useDiceBox('dice-bandeja-jogador', active, 100, resolverRolagemJogador);
   const podeRolar = ready && !rolando;
+  const [geracaoControles, setGeracaoControles] = useState(0);
+  const pedidoSanidadeJaObservado = useRef<number>();
 
   // rolagem de OUTRO jogador também anima aqui quando a aba Dados está aberta — a própria
   // rolagem deste jogador é filtrada dentro do hook (ehRolagemPropria), senão a bandeja tocaria
@@ -42,17 +45,23 @@ export default function DadosTabJogador({ ficha, active = true, pedidoRapidoSani
   // física, só entra no total mostrado pelo aviso ao vivo (formatarHeaderRolagem).
   const rolarEBroadcast = (
     notacao: Parameters<typeof rolar>[0],
-    onComplete: Parameters<typeof rolar>[1],
+    onComplete: (grupos: RollGroupResult[]) => void | false,
     colorset?: Parameters<typeof rolar>[2],
     personagemId?: Parameters<typeof rolar>[3],
     tipo?: Parameters<typeof rolar>[4],
     bonus?: number,
+    contexto?: 'livre' | 'trauma',
   ) => {
+    const id = avisarInicioRolagem(ficha.nome || 'jogador', ficha.corVisual, tipo ?? 'teste');
     rolar(
       notacao,
       (grupos) => {
-        onComplete(grupos);
-        const id = crypto.randomUUID();
+        if (onComplete(grupos) === false) {
+          // Uma regra invalidada enquanto a física rodava não publica um resultado.
+          const aoVivo = useRolagemAoVivoStore.getState();
+          if (aoVivo.iniciando?.id === id) aoVivo.definirInicio(null);
+          return;
+        }
         marcarComoProprio(id);
         useRolagemAoVivoStore.getState().definirAtual({
           id,
@@ -63,6 +72,7 @@ export default function DadosTabJogador({ ficha, active = true, pedidoRapidoSani
           origem: ficha.nome || 'jogador',
           tipo: tipo ?? 'teste',
           bonus,
+          contexto,
         });
       },
       colorset,
@@ -94,14 +104,21 @@ export default function DadosTabJogador({ ficha, active = true, pedidoRapidoSani
           </p>
         </div>
       )}
-      {erro && !modo2D && <p style={{ color: 'var(--ruido)' }}>erro: {erro}</p>}
+      {falhaRolagem && <p role="status" style={{ color: 'var(--ruido)' }}>não consegui rolar. Se algum botão ficou bloqueado, <button onClick={() => {
+        // Remontar Sanidade não pode repetir um lembrete antigo já consumido.
+        pedidoSanidadeJaObservado.current = pedidoRapidoSanidade;
+        setGeracaoControles((n) => n + 1);
+      }}>reiniciar controles</button> e tente novamente.</p>}
       {!ready && !erro && <p className="vazio">carregando física dos dados…</p>}
 
-      <RoladorTesteJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} />
-      <RoladorSanidadeJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} pedidoRapido={pedidoRapidoSanidade} />
-      <RoladorSurtoJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} />
-      <RoladorTraumaJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} />
-      <RolagemLivreJogador fichaId={ficha.id} ready={podeRolar} rolar={rolarEBroadcast} />
+      <Fragment key={geracaoControles}>
+        <RoladorTesteJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} />
+        <RoladorSanidadeJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} pedidoRapido={pedidoSanidadeJaObservado.current === pedidoRapidoSanidade ? 0 : pedidoRapidoSanidade} />
+        <RoladorSurtoJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} />
+        <RoladorTraumaJogador ficha={ficha} ready={podeRolar} rolar={rolarEBroadcast} />
+        <RolagemLivreJogador fichaId={ficha.id} ready={podeRolar} rolar={(notacao, onComplete, _colorset, _personagemId, _tipo, bonusLivre) =>
+          rolarEBroadcast(notacao, onComplete, undefined, ficha.id, 'teste', bonusLivre, 'livre')} />
+      </Fragment>
       <div style={{ gridColumn: 'span 2' }}>
         <FeedRolagensJogador />
       </div>

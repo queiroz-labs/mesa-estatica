@@ -106,7 +106,7 @@ function LinhaRoll({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
       <span style={{ opacity: privada ? 0.6 : 1 }}>
-        [{new Date(r.timestamp).toLocaleTimeString()}] [{r.origem}] rolou {r.formula}: {r.total} (bruto: {r.bruto})
+        [{new Date(r.timestamp).toLocaleTimeString()}] {r.origem} · registro de dados: {r.formula} · total registrado: {r.total} · valor base: {r.bruto}
       </span>
       <span style={{ fontSize: '11px', opacity: 0.5 }}>{privada ? 'privado' : 'público'}</span>
       {podeLimpar && (

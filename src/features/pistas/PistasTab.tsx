@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../../state/store';
 import type { Pista, StatusPista } from '../../state/types';
 import { IconeCheck, IconeMegafone, IconePrancheta } from '../combate/icones';
@@ -19,6 +19,17 @@ function PistaCard({ pista }: { pista: Pista }) {
   const removerPista = useStore((s) => s.removerPista);
   const registrarLog = useStore((s) => s.registrarLog);
   const [copiado, setCopiado] = useState(false);
+  const [erroCopia, setErroCopia] = useState(false);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+
+  useEffect(() => {
+    if (!confirmarExclusao) return;
+    const fechar = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); setConfirmarExclusao(false); }
+    };
+    window.addEventListener('keydown', fechar);
+    return () => window.removeEventListener('keydown', fechar);
+  }, [confirmarExclusao]);
 
   const indiceAtual = COLUNAS.findIndex((c) => c.status === pista.status);
   const anterior = COLUNAS[indiceAtual - 1];
@@ -30,9 +41,12 @@ function PistaCard({ pista }: { pista: Pista }) {
   };
 
   const copiar = async () => {
-    await navigator.clipboard.writeText(formatarPista(pista));
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 1800);
+    setErroCopia(false);
+    try {
+      await navigator.clipboard.writeText(formatarPista(pista));
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1800);
+    } catch { setErroCopia(true); }
   };
 
   return (
@@ -92,10 +106,27 @@ function PistaCard({ pista }: { pista: Pista }) {
             {copiado ? <IconeCheck size={11} /> : <IconePrancheta size={11} />}
           </button>
         </div>
-        <button className="icone-botao perigo" onClick={() => removerPista(pista.id)}>
+        <button className="icone-botao perigo" title="excluir pista" onClick={() => setConfirmarExclusao(true)}>
           ×
         </button>
       </div>
+      {erroCopia && <p role="status" className="vazio" style={{ fontSize: 11, margin: 0 }}>cópia bloqueada pelo navegador — selecione o texto da pista e copie manualmente.</p>}
+      {confirmarExclusao && <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'var(--overlay-backdrop)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setConfirmarExclusao(false)}>
+        <div className="secao" role="dialog" aria-modal="true" aria-labelledby={`excluir-pista-${pista.id}`}
+          style={{ width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
+          onClick={(e) => e.stopPropagation()} onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') { e.preventDefault(); setConfirmarExclusao(false); }
+          }}>
+          <h3 id={`excluir-pista-${pista.id}`} style={{ margin: 0 }}>excluir pista</h3>
+          <p className="vazio" style={{ margin: 0 }}>{pista.texto.slice(0, 160) || 'pista sem texto'}</p>
+          <p className="vazio" style={{ margin: 0 }}>o papel não esquece — não dá para desfazer.</p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button autoFocus onClick={() => setConfirmarExclusao(false)}>cancelar</button>
+            <button className="perigo" onClick={() => removerPista(pista.id)}>excluir pista</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }

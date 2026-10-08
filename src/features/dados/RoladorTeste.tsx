@@ -5,6 +5,8 @@ import { formatarLogRolagem, type RollGroupResult } from '../../dice/useDiceBox'
 import { calcularPvMaximo, estaFerido } from '../../rules/derivados';
 import { ATRIBUTOS, PERICIAS } from '../../rules/data/pericias';
 import { useStore } from '../../state/store';
+import ResultadoTeste from './ResultadoTeste';
+import { criarResultadoTesteDetalhado, type ResultadoTesteDetalhado } from './resultadoTesteApresentacao';
 
 interface RoladorTesteProps {
   ready: boolean;
@@ -33,7 +35,7 @@ export default function RoladorTeste({ ready, rolar }: RoladorTesteProps) {
   const [periciaId, setPericiaId] = useState(PERICIAS[0].id);
   const [bonus, setBonus] = useState(0);
   const [privado, setPrivado] = useState(true);
-  const [resultadoRolagem, setResultadoRolagem] = useState<{ d20: number; modificador: number; total: number } | null>(null);
+  const [resultadoRolagem, setResultadoRolagem] = useState<ResultadoTesteDetalhado | null>(null);
   const [rolando, setRolando] = useState(false);
 
   const ficha = fichas.find((f) => f.id === fichaId) ?? null;
@@ -69,7 +71,11 @@ export default function RoladorTeste({ ready, rolar }: RoladorTesteProps) {
         const penalidadeFerido = ferido && (pericia.atributo === 'vigor' || pericia.atributo === 'agilidade') ? -2 : 0;
         const modificador = ficha.atributos[pericia.atributo] + grauPericia + penalidadeFerido;
         const total = d20 + modificador;
-        setResultadoRolagem({ d20, modificador, total });
+        setResultadoRolagem(criarResultadoTesteDetalhado(ficha.nome || 'Personagem', pericia.nome, d20, [
+          { rotulo: atributo.nome, valor: ficha.atributos[pericia.atributo] },
+          { rotulo: pericia.nome, valor: grauPericia },
+          { rotulo: 'ferido', valor: penalidadeFerido },
+        ]));
         setRolando(false);
 
         const origem = ficha.nome || 'Personagem';
@@ -99,7 +105,9 @@ export default function RoladorTeste({ ready, rolar }: RoladorTesteProps) {
       rolar('1d20', (grupos) => {
         const d20 = grupos[0]?.rolls[0]?.value ?? 0;
         const total = d20 + bonus;
-        setResultadoRolagem({ d20, modificador: bonus, total });
+        setResultadoRolagem(criarResultadoTesteDetalhado(npc.nome || 'NPC', 'teste rápido', d20, [
+          { rotulo: 'ajuste', valor: bonus },
+        ]));
         setRolando(false);
 
         const origem = npc.nome || 'NPC';
@@ -254,18 +262,11 @@ export default function RoladorTeste({ ready, rolar }: RoladorTesteProps) {
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '12px' }}>
           <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} />
-          privado
+          só no app do mestre
         </label>
       </div>
 
-      {resultadoRolagem && (
-        <div className="alerta-banner mono" style={{ marginTop: '0.75rem' }}>
-          <span>
-            d20={resultadoRolagem.d20} {resultadoRolagem.modificador >= 0 ? '+' : ''}
-            {resultadoRolagem.modificador} = {resultadoRolagem.total}
-          </span>
-        </div>
-      )}
+      {resultadoRolagem && <ResultadoTeste resultado={resultadoRolagem} />}
     </section>
   );
 }

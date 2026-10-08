@@ -27,6 +27,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
     condicoesCombate, condicaoDuracao, fichas, npcs,
     selecionadosIniciativa,
     removerDaIniciativa, reordenarIniciativa, rerolarIniciativaDe,
+    adiarIniciativa,
     iniciarModoCombate, avancarTurno, voltarTurno, encerrarModoCombate,
     alternarCondicaoCombate, definirDuracaoCondicao,
     disponiveis, todosSelecionados, nenhumSelecionado, adicionarDisponiveis,
@@ -60,7 +61,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
           <>
             {!ocultarBotaoProximo && (
               <>
-                <button className="icone-botao" onClick={voltarTurno} title="voltar pro turno anterior">
+                <button className="icone-botao" onClick={voltarTurno} title="voltar pro turno anterior — não restaura condições que já expiraram">
                   anterior
                 </button>
                 <button className="icone-botao acento" onClick={avancarTurno}>
@@ -234,15 +235,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                     disabled={!podeAdiar}
                     onClick={podeAdiar ? (ev) => {
                       ev.stopPropagation();
-                      reordenarIniciativa(i, iniciativa.length - 1);
-                      const jaAdiado = ativas.includes('aguardando');
-                      alternarCondicaoCombate(e.participanteId, 'aguardando');
-                      // "foi pro fim da ordem DESTA rodada" (condicoesCombate.ts) — sem duração,
-                      // o chip ficava aceso pra sempre até o mestre lembrar de desligar na mão.
-                      // 1 rodada reaproveita o decremento automático que avancarTurno já faz.
-                      // Só ao LIGAR: se já estava adiado e o clique desligou, alternarCondicaoCombate
-                      // já limpou a duração órfã — setar de novo aqui a ressuscitaria sem sentido.
-                      if (!jaAdiado) definirDuracaoCondicao(e.participanteId, 'aguardando', 1);
+                      adiarIniciativa(e.id);
                     } : undefined}
                     title={podeAdiar ? 'adiar — vai pro fim da ordem desta rodada' : undefined}
                     style={{
@@ -279,11 +272,15 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                       className="badge"
                       title={
                         morto
-                          ? 'morto — PV chegou à metade negativa do máximo (regras.md).'
+                          ? (pv && estaMorto(pv.atual, pv.maximo)
+                            ? 'morto — PV chegou à metade negativa do máximo (regras.md).'
+                            : 'morto — condição marcada pelo mestre, independente do PV.')
                           : foraDeCombate
                             ? (ativas.includes('estavel')
                               ? 'estabilizado (Medicina DT 15) — acorda com 1 PV no fim da cena'
-                              : '0 PV — caído, não morto. Sem socorro, morre em minutos (regras.md).')
+                              : (pv && pv.atual <= 0
+                                ? '0 PV ou menos — caído, não morto. Sem socorro, morre em minutos (regras.md).'
+                                : 'desacordado — condição marcada pelo mestre, independente do PV.'))
                             : 'PV em 25% ou menos do máximo'
                       }
                       style={{ borderColor: 'var(--ruido)', color: 'var(--ruido)', fontSize: 10, padding: '0.1em 0.35em', flexShrink: 0 }}
@@ -303,11 +300,11 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                     style={{ fontSize: 11, color: 'var(--ink-faint)', flexShrink: 0, minWidth: 26, textAlign: 'right' }}
                     title={
                       e.d20 !== undefined && e.agilidade !== undefined
-                        ? `rolagem iniciativa: d20 ${e.d20} + agilidade ${e.agilidade} = ${e.valor}`
-                        : 'rolagem iniciativa'
+                        ? `iniciativa ${e.valor}: d20 ${e.d20} + agilidade aplicada ${e.agilidade}`
+                        : `iniciativa ${e.valor}`
                     }
                   >
-                    {e.d20 !== undefined && e.agilidade !== undefined ? `${e.d20}+${e.agilidade}` : e.valor}
+                    {`inic. ${e.valor}`}
                   </span>
                   {pv && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
@@ -430,7 +427,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                         </div>
                       )}
                     </div>
-                    {pv && pv.atual <= 0 && !ativas.includes('estavel') && (
+                    {pv && pv.atual <= 0 && !morto && !ativas.includes('estavel') && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
                         <span className="vazio" style={{ fontSize: 11 }}>socorro:</span>
                         <select
@@ -456,7 +453,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                         </button>
                       </div>
                     )}
-                    {pv && pv.atual > 0 && pv.atual < pv.maximo && (
+                    {pv && pv.atual > 0 && pv.atual < pv.maximo && !morto && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
                         <span className="vazio" style={{ fontSize: 11 }}>socorro:</span>
                         <select

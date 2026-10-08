@@ -8,6 +8,7 @@ import { ehDataUrl } from './imagemPendente';
 import { inserirOuAtualizarNaCorrida } from './insercaoConcorrente';
 import { mesclar3Vias } from './merge3Vias';
 import { eraRemocaoExplicita } from './remocaoExplicita';
+import { iniciarNotificacoesVisibilidadeNpcs, notificarVisibilidadeNpcs } from './visibilidadeNpcsSync';
 
 const PREFIXO_DELETE = 'delete:';
 
@@ -157,6 +158,9 @@ async function empurrarNpc(cliente: Cliente, npc: Npc, baselines: Map<string, Np
           .update(fotoPendente ? { ...linhaPublicoLocal, foto: undefined } : linhaPublicoLocal)
           .eq('id', npc.id),
     );
+    // Inclui INSERT que virou UPDATE por corrida: outro mestre pode ter criado/revelado a
+    // mesma linha entre o SELECT e a escrita, mesmo se o rascunho local está oculto.
+    notificarVisibilidadeNpcs();
     await inserirOuAtualizarNaCorrida(
       () => cliente.from('npcs_privado').insert({ id: npc.id, notas_mestre: npc.notasMestre }),
       () => cliente.from('npcs_privado').upsert({ id: npc.id, notas_mestre: npc.notasMestre }),
@@ -172,6 +176,7 @@ async function empurrarNpc(cliente: Cliente, npc: Npc, baselines: Map<string, Np
   const patchPublico = fotoPendente ? { ...linhaPublico, foto: undefined } : linhaPublico;
   const { error: erroPublico } = await cliente.from('npcs_publico').update(patchPublico).eq('id', npc.id);
   if (erroPublico) throw erroPublico;
+  if ((existentePublico as LinhaPublico).visivel !== linhaPublico.visivel) notificarVisibilidadeNpcs();
 
   const privadoLocal = { id: npc.id, notas_mestre: npc.notasMestre };
   const privado =
@@ -193,6 +198,7 @@ async function empurrarNpc(cliente: Cliente, npc: Npc, baselines: Map<string, Np
 export function iniciarSyncNpcs(): () => void {
   const cliente = supabase;
   if (!cliente) return () => {};
+  const pararVisibilidade = iniciarNotificacoesVisibilidadeNpcs();
 
   // Contador, não boolean — mesmo motivo de fichasSync.ts: npcs_publico/npcs_privado disparam
   // dois eventos Realtime pra um push só, e um boolean simples deixa o primeiro `aplicarRemoto`
@@ -398,6 +404,7 @@ export function iniciarSyncNpcs(): () => void {
 
   return () => {
     unsubscribeLocal();
+    pararVisibilidade();
     desconectarCanal('npcs-publico-sync');
     desconectarCanal('npcs-privado-sync');
     cliente.removeChannel(canalPublico);

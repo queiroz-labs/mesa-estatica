@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ColorsetId } from '../../dice/colorsets';
-import { formatarLogRolagem, type RollGroupResult, type RollTermo } from '../../dice/useDiceBox';
+import type { RollGroupResult, RollTermo } from '../../dice/useDiceBox';
+import type { TipoRolagemForcada } from '../../dice/registroForcados';
 import { PERDA_SANIDADE, type GatilhoSanidade } from '../../rules/data/dificuldades';
 import { useStore } from '../../state/store';
 import type { Ficha } from '../../state/types';
+import { sucessoNaturalSanidade, textoConsequenciasSanidade, textoDadoPerda, textoTesteSanidade, type DadosSanidade } from './resultadosEspeciais';
 
 // Duplicado de `RoladorSanidade.tsx` de propósito (poucas linhas, puro) — evita puxar aquele
 // módulo (com o resto do rolador de mestre) pro bundle do jogador.
@@ -33,6 +35,8 @@ interface Props {
     onComplete: (r: RollGroupResult[]) => void,
     colorset?: ColorsetId,
     personagemId?: string | null,
+    tipo?: TipoRolagemForcada,
+    bonus?: number,
   ) => void;
   /** Incrementado por `PlayerApp.tsx` a partir do botão "rolar" no lembrete de Sanidade do log
    *  (`LogTabJogador.tsx` → `rolagemRapidaSanidadeStore`) — ao mudar, força o gatilho
@@ -47,13 +51,13 @@ interface Props {
  * SUCESSO do teste de Vontade vs. DT da cena (regras.md) — mas quem julga sucesso/falha é
  * o mestre, à mão, comparando o total com a DT que tiver em mente (o app não resolve isso
  * sozinho nem no rolador do próprio mestre, ver `RoladorSanidade.tsx`). Mostra só os dados
- * brutos (d20 + perda rolada); o mestre confirma o resultado e aplica a perda na própria tela.
+ * do teste (d20 + Vontade) separados da perda rolada; o mestre confirma e aplica a perda.
  */
 export default function RoladorSanidadeJogador({ ficha, ready, rolar, pedidoRapido }: Props) {
   const registrarLog = useStore((s) => s.registrarLog);
   const [gatilhoId, setGatilhoId] = useState<GatilhoSanidade>('perturbador');
   const [rolando, setRolando] = useState(false);
-  const [resultado, setResultado] = useState<{ d20: number; perdaRolada: number } | null>(null);
+  const [resultado, setResultado] = useState<(DadosSanidade & { gatilhoNome: string }) | null>(null);
 
   const gatilho = PERDA_SANIDADE.find((g) => g.id === gatilhoId)!;
 
@@ -65,25 +69,20 @@ export default function RoladorSanidadeJogador({ ficha, ready, rolar, pedidoRapi
       [{ sides: 20, qty: 1 }, perdaTermo],
       (grupos) => {
         const { d20, perdaRolada } = extrairResultadosSanidade(grupos, perdaTermo);
-        setResultado({ d20, perdaRolada });
+        const r = { d20, perdaRolada, vontade: ficha.atributos.vontade, gatilhoDado: gatilhoAlvo.dado, gatilhoNome: gatilhoAlvo.nome };
+        setResultado(r);
         setRolando(false);
         registrarLog(
           'sanidade',
-          formatarLogRolagem({
-            quem: ficha.nome || 'Personagem',
-            tipo: `Sanidade: ${gatilhoAlvo.nome}`,
-            grupos: [{ notacao: '1d20', resultados: [d20] }, { notacao: gatilhoAlvo.dado, resultados: [perdaRolada] }],
-            total: d20,
-            // sem sucesso/falha ainda (só o mestre confirma, comparando com a DT) — só avisa
-            // que o resultado está pendente, no mesmo tom do banner acima.
-            sufixo: '· aguardando confirmação do mestre',
-          }),
+          `${ficha.nome || 'Personagem'} · Sanidade: ${gatilhoAlvo.nome} · ${textoTesteSanidade(r)} · ${textoDadoPerda(r)}${sucessoNaturalSanidade(d20) !== null ? ` · ${textoConsequenciasSanidade(perdaRolada, d20)}` : ''} · aguardando o mestre confirmar e aplicar a perda`,
           ficha.id,
           'publica',
         );
       },
       'ruido',
       ficha.id,
+      'sanidade',
+      ficha.atributos.vontade,
     );
   };
 
@@ -111,11 +110,12 @@ export default function RoladorSanidadeJogador({ ficha, ready, rolar, pedidoRapi
   return (
     <section className="secao">
       <h3 className="label">Rolador de Sanidade</h3>
+      <p className="vazio">o teste de Vontade decide quanto perde; o dado de perda é rolado separado. O mestre confirma o resultado e aplica a perda.</p>
 
       <div className="campos-grid" style={{ gridTemplateColumns: '1fr' }}>
         <div>
           <label htmlFor="rsj-gatilho">Gatilho</label>
-          <select id="rsj-gatilho" value={gatilhoId} onChange={(e) => setGatilhoId(e.target.value as GatilhoSanidade)}>
+          <select id="rsj-gatilho" value={gatilhoId} disabled={rolando} onChange={(e) => setGatilhoId(e.target.value as GatilhoSanidade)}>
             {PERDA_SANIDADE.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.nome} ({g.dado})
@@ -126,15 +126,14 @@ export default function RoladorSanidadeJogador({ ficha, ready, rolar, pedidoRapi
       </div>
 
       <button className="acento" style={{ marginTop: '0.75rem' }} disabled={!ready || rolando} onClick={() => rolarSanidade()}>
-        rolar Vontade + {gatilho.dado}
+        rolar teste de Vontade e perda ({gatilho.dado})
       </button>
 
       {resultado && (
-        <div className="alerta-banner mono" style={{ marginTop: '0.75rem' }}>
-          <span>
-            d20={resultado.d20} · rolou {resultado.perdaRolada} no dado de Sanidade — aguarde o mestre confirmar quanto perde
-            de verdade
-          </span>
+        <div className="alerta-banner mono" style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          <span>{textoTesteSanidade(resultado)}</span>
+          <span>{textoDadoPerda(resultado)} · {textoConsequenciasSanidade(resultado.perdaRolada, resultado.d20)}</span>
+          <span>aguarde o mestre confirmar e aplicar a perda. Nada foi descontado ainda.</span>
         </div>
       )}
     </section>

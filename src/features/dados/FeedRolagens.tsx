@@ -20,6 +20,7 @@ export default function FeedRolagens() {
           {ultimos.map((e) => (
             <div key={e.id}>
               [{new Date(e.timestamp).toLocaleTimeString()}] {e.texto}
+              <span className="vazio" style={{ marginLeft: '0.5rem', fontSize: 11 }}>{e.visibilidade === 'privada' ? 'só no app do mestre' : 'visível aos jogadores'}</span>
             </div>
           ))}
         </div>

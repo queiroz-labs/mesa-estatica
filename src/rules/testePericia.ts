@@ -36,6 +36,7 @@ export function rolarTestePericiaFicha(
   registrarRoll: RegistrarRoll,
   visibilidade: 'publica' | 'privada',
   rotuloArma?: string,
+  rolagemId?: string,
 ): ResultadoTestePericia {
   const grauPericia = ficha.pericias[pericia.id] ?? 0;
   const pvMaximo = calcularPvMaximo(basePV, ficha.atributos.vigor);
@@ -58,7 +59,7 @@ export function rolarTestePericiaFicha(
   registrarRoll({ origem: nomePersonagem, personagemId: ficha.id, formula: `d20${modStr}`, total, bruto: d20, visibilidade });
 
   if (visibilidade === 'publica') {
-    const id = crypto.randomUUID();
+    const id = rolagemId ?? crypto.randomUUID();
     marcarComoProprio(id);
     useRolagemAoVivoStore.getState().definirAtual({
       id,

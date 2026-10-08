@@ -20,7 +20,7 @@ interface QuickRollOverlayProps {
 
 export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, pedidoRolagem }: QuickRollOverlayProps) {
   const habilitado = abaAtual !== 'dados' && aberto;
-  const { ready, rolando, modo2D, rolar, reproduzir } = useDiceBox('dice-overlay-rapido', habilitado, 45, undefined, consumirForcados);
+  const { ready, rolando, modo2D, erro, falhaRolagem, rolar, reproduzir } = useDiceBox('dice-overlay-rapido', habilitado, 45, undefined, consumirForcados);
   const fichas = useStore((s) => s.fichas);
   const npcs = useStore((s) => s.npcs);
   const fichaAtivaId = useStore((s) => s.fichaAtivaId);
@@ -65,7 +65,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
 
       const origem = quem === 'npc' ? (npc?.nome || 'NPC') : (ficha?.nome || 'd20 rápido');
       const id = quem === 'npc' ? (npc?.id ?? null) : (ficha?.id ?? null);
-      const formula = bonus !== 0 ? `d20+${bonus}` : 'd20';
+      const formula = bonus !== 0 ? `d20${bonus > 0 ? '+' : ''}${bonus}` : 'd20';
       registrarLog(
         'teste',
         formatarLogRolagem({ quem: origem, tipo: 'Rolagem Rápida', grupos: [{ notacao: '1d20', resultados: [valor] }], bonus, total }),
@@ -123,7 +123,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
         const d20 = grupos[0]?.rolls[0]?.value ?? 0;
         const total = d20 + bonus;
         setResultadoRoll({ d20, modificador: bonus, total });
-        const formula = bonus !== 0 ? `d20+${bonus}` : 'd20';
+        const formula = bonus !== 0 ? `d20${bonus > 0 ? '+' : ''}${bonus}` : 'd20';
         registrarLog(
           'teste',
           formatarLogRolagem({ quem: npc.nome || 'NPC', tipo: 'Teste Rápido', grupos: [{ notacao: '1d20', resultados: [d20] }], bonus, total }),
@@ -147,11 +147,12 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
   // card (removida — colidia entre instâncias simultâneas, ver `armasCombate.ts`). NPC não tem
   // crítico (nunca teve gatilho de UI pra isso), só o ramo de PC usa `p.critico`.
   const executarPedidoDano = (p: PedidoRolagemDano) => {
+    if (!usePedidoRolagemDanoStore.getState().iniciarPedidoRolagemDano(p.id)) return;
     if (p.npcId !== undefined) {
       const npcAlvo = npcs.find((n) => n.id === p.npcId);
       const acao = npcAlvo?.acoes.find((a) => a.id === p.armaId);
       if (!npcAlvo || !acao) {
-        limparPedidoRolagemDano();
+        limparPedidoRolagemDano(p.id);
         return;
       }
       setResultadoDano(null);
@@ -159,7 +160,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
       const finalizarNpc = (valoresDados: number[], termos: Parameters<typeof reproduzir>[0]) => {
         const r = rolarDanoNpcArma(npcAlvo, acao, termos, valoresDados, registrarLog, registrarRoll, p.visibilidade);
         setResultadoDano({ nomeArma: acao.nome || 'arma', texto: r.texto, erro: r.erro });
-        limparPedidoRolagemDano();
+        limparPedidoRolagemDano(p.id);
       };
       if (!parsed) {
         finalizarNpc([], []);
@@ -172,14 +173,14 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
     const fichaAlvo = fichas.find((f) => f.id === p.fichaId);
     const arma = fichaAlvo?.armas.find((a) => a.id === p.armaId);
     if (!fichaAlvo || !arma) {
-      limparPedidoRolagemDano();
+      limparPedidoRolagemDano(p.id);
       return;
     }
     setResultadoDano(null);
     const finalizar = (valoresDados: number[], termos: Parameters<typeof reproduzir>[0]) => {
       const r = rolarDanoArmaFicha(fichaAlvo, arma, termos, valoresDados, p.critico, registrarLog, registrarRoll, p.visibilidade);
       setResultadoDano({ nomeArma: arma.nome || 'arma', texto: r.texto, erro: r.erro });
-      limparPedidoRolagemDano();
+      limparPedidoRolagemDano(p.id);
     };
     const parsed = parseDanoArma(arma.dano);
     if (!parsed) {
@@ -200,10 +201,11 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
   // acima, mesma bandeja física. NPC não tem perícia/atributo — `bonusFixo` já é o modificador
   // pronto, sem lookup nenhum.
   const executarPedidoTeste = (p: PedidoRolagemTeste) => {
+    if (!usePedidoRolagemTesteStore.getState().iniciarPedidoRolagemTeste(p.id)) return;
     if (p.npcId !== undefined) {
       const npcAlvo = npcs.find((n) => n.id === p.npcId);
       if (!npcAlvo || p.bonusFixo === undefined) {
-        limparPedidoRolagemTeste();
+        limparPedidoRolagemTeste(p.id);
         return;
       }
       setResultadoTeste(null);
@@ -211,14 +213,14 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
         const d20 = grupos[0]?.rolls[0]?.value ?? 0;
         const r = rolarAtaqueNpc(npcAlvo, p.rotuloArma ?? 'ação', p.bonusFixo!, d20, registrarLog, registrarRoll, p.visibilidade);
         setResultadoTeste({ rotulo: p.rotuloArma ?? npcAlvo.nome, texto: r.texto });
-        limparPedidoRolagemTeste();
+        limparPedidoRolagemTeste(p.id);
       }, 'rede', npcAlvo.id, 'teste');
       return;
     }
     const fichaAlvo = fichas.find((f) => f.id === p.fichaId);
     const pericia = PERICIAS.find((per) => per.id === p.periciaId);
     if (!fichaAlvo || !pericia) {
-      limparPedidoRolagemTeste();
+      limparPedidoRolagemTeste(p.id);
       return;
     }
     setResultadoTeste(null);
@@ -226,7 +228,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
       const d20 = grupos[0]?.rolls[0]?.value ?? 0;
       const r = rolarTestePericiaFicha(fichaAlvo, pericia, d20, basePV, registrarLog, registrarRoll, p.visibilidade, p.rotuloArma);
       setResultadoTeste({ rotulo: p.rotuloArma ?? pericia.nome, texto: r.texto });
-      limparPedidoRolagemTeste();
+      limparPedidoRolagemTeste(p.id);
     }, 'rede', fichaAlvo.id, 'teste');
   };
 
@@ -260,7 +262,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
   executarPedidoDanoRef.current = executarPedidoDano;
 
   useEffect(() => {
-    if (!pedidoDano) return;
+    if (!pedidoDano) { pedidoDanoPendenteRef.current = null; return; }
     if (ready && !rolando) {
       executarPedidoDanoRef.current(pedidoDano);
     } else {
@@ -283,7 +285,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
   executarPedidoTesteRef.current = executarPedidoTeste;
 
   useEffect(() => {
-    if (!pedidoTeste) return;
+    if (!pedidoTeste) { pedidoTestePendenteRef.current = null; return; }
     if (ready && !rolando) {
       executarPedidoTesteRef.current(pedidoTeste);
     } else {
@@ -299,6 +301,14 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
       executarPedidoTesteRef.current(p);
     }
   }, [ready, rolando]);
+
+  useEffect(() => {
+    if (!erro || !falhaRolagem) return;
+    const dano = usePedidoRolagemDanoStore.getState();
+    const teste = usePedidoRolagemTesteStore.getState();
+    if (dano.pedido && dano.emExecucaoId === dano.pedido.id) { pedidoDanoPendenteRef.current = null; dano.limparPedidoRolagemDano(dano.pedido.id); }
+    if (teste.pedido && teste.emExecucaoId === teste.pedido.id) { pedidoTestePendenteRef.current = null; teste.limparPedidoRolagemTeste(teste.pedido.id); }
+  }, [erro, falhaRolagem]);
 
   if (abaAtual === 'dados') return null;
 
@@ -320,6 +330,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
           <div className="vazio" style={{ fontSize: 10, marginBottom: '0.4rem', textAlign: 'center' }}>
             atalhos: R=abrir/rolar · X=fechar
           </div>
+          {falhaRolagem && <p role="status" className="vazio">não consegui rolar — tente novamente.</p>}
 
           <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.5rem' }}>
             <button
@@ -441,7 +452,7 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
             </span>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '11px' }}>
               <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} />
-              privado
+              {privado ? 'só no app do mestre' : 'mostrar aos jogadores'}
             </label>
           </div>
 

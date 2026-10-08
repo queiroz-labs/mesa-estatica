@@ -31,6 +31,7 @@ export function rolarDanoArmaFicha(
   registrarLog: RegistrarLog,
   registrarRoll: RegistrarRoll,
   visibilidade: 'publica' | 'privada',
+  rolagemId?: string,
 ): ResultadoDanoArma {
   const resultado = resolverDanoArma(arma, valoresDados, ficha.atributos.vigor, critico);
   const nomePersonagem = ficha.nome || 'Personagem';
@@ -50,7 +51,7 @@ export function rolarDanoArmaFicha(
   });
 
   if (!resultado.erro && visibilidade === 'publica') {
-    const id = crypto.randomUUID();
+    const id = rolagemId ?? crypto.randomUUID();
     marcarComoProprio(id);
     useRolagemAoVivoStore.getState().definirAtual({
       id,
