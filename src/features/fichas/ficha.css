@@ -1,6 +1,6 @@
 .fichas-tab {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 1rem;
   height: 100%;
   min-height: 0;
@@ -15,6 +15,7 @@
 }
 
 .fichas-lista__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -35,6 +36,21 @@
   box-shadow: 0 0 0 1px var(--rede-glow);
 }
 
+.fichas-lista__selecionar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  font-family: var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: left;
+}
+
 .fichas-lista__cor {
   width: 10px;
   height: 10px;
@@ -43,6 +59,8 @@
 }
 
 .ficha-editor {
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 0.5rem;
   display: flex;
@@ -95,8 +113,8 @@
 }
 
 .derivado-card__label {
-  font-size: 10px;
-  color: var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-dim);
 }
 
 .derivado-card__valor {
@@ -106,6 +124,7 @@
 
 .derivado-card__atual {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
@@ -141,13 +160,19 @@
 }
 
 .icone-botao {
-  padding: 0.35em 0.6em;
+  min-height: var(--controle-altura-compacta);
+  min-width: var(--controle-altura-compacta);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.25em 0.5em;
   font-size: 12px;
 }
 
 .pericias-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 1rem 1.5rem;
 }
 
@@ -155,7 +180,7 @@
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--rede);
   margin: 0 0 0.4rem 0;
 }
@@ -181,7 +206,8 @@
 
 .grau-toggle button {
   padding: 0.2em 0.55em;
-  font-size: 11px;
+  min-height: var(--controle-altura-compacta);
+  font-size: 12px;
 }
 
 .grau-toggle button[data-ativo='true'] {
@@ -225,8 +251,8 @@
 
 .armas-tabela th {
   text-align: left;
-  font-size: 10px;
-  color: var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-dim);
   font-weight: normal;
   padding: 0.3em 0.4em;
   border-bottom: 1px solid var(--concrete-2);
@@ -400,4 +426,31 @@
   width: 2px;
   background: var(--ink);
   opacity: 0.8;
+}
+
+@media (max-width: 760px) {
+  .fichas-tab {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .fichas-lista {
+    max-height: 11rem;
+  }
+
+  .atributos-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .derivados-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pericia-linha {
+    align-items: flex-start;
+  }
+
+  .dinheiro-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

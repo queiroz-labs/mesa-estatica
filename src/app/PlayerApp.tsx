@@ -42,6 +42,7 @@ import DesyncIndicadorJogador from './DesyncIndicadorJogador';
 import LogTabJogador from './LogTabJogador';
 import ResumoJogador from './ResumoJogador';
 import '../features/fichas/ficha.css';
+import './cabecalho.css';
 
 type AbaId = 'sessao' | 'personagens' | 'dados' | 'npcs' | 'mapa' | 'midia' | 'log';
 
@@ -176,38 +177,27 @@ export default function PlayerApp() {
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="mesa-shell">
       <AvisoSupabaseAusente />
       <RuidoOverlay />
       <AlertaOverlayJogador />
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0.75rem 1.5rem',
-          borderBottom: '1px solid var(--concrete-2)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', minWidth: 0, flex: '1 1 auto' }}>
-          <h1
-            style={{
-              fontSize: '18px',
-              margin: 0,
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: '0.4rem',
-              flexWrap: 'wrap',
-              minWidth: 0,
-            }}
-          >
+      <header className="cabecalho">
+        <div className="cabecalho__topo">
+          <h1 className="cabecalho__titulo cabecalho__titulo-jogador">
             <span style={{ color: 'var(--ink-dim)', fontWeight: 400 }}>Estática —</span>
-            <span style={{ color: minhaFicha?.corVisual || 'var(--rede)', fontWeight: 700 }}>
+            <span style={{ color: minhaFicha?.corVisual || 'var(--rede)', fontWeight: 700, overflowWrap: 'anywhere', minWidth: 0 }}>
               {minhaFicha?.nome || 'Mesa'}
             </span>
           </h1>
-          <DesyncIndicadorJogador />
-          <nav style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+          <div className="cabecalho__acoes">
+            <DesyncIndicadorJogador />
+            <SoundpadPlayer />
+            <RolagemAoVivoPlayer ficha={minhaFicha ?? undefined} />
+            <MidiaPlayerJogador />
+            <AmbienciaPlayer jogador />
+          </div>
+        </div>
+          <nav className="cabecalho__abas" aria-label="Abas do jogador">
             {ABAS.map((a) => {
               const ativa = aba === a.id;
               // aviso discreto (mesmo espírito do botão ATK ciano do CombatOverlay): a aba
@@ -218,6 +208,8 @@ export default function PlayerApp() {
               return (
                 <button
                   key={a.id}
+                  aria-current={ativa ? 'page' : undefined}
+                  title={`${a.label} (atalho: ${ABAS.indexOf(a) + 1})`}
                   onClick={() => setAba(a.id)}
                   style={
                     ativa
@@ -232,13 +224,6 @@ export default function PlayerApp() {
               );
             })}
           </nav>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
-          <SoundpadPlayer />
-          <RolagemAoVivoPlayer ficha={minhaFicha ?? undefined} />
-          <MidiaPlayerJogador />
-          <AmbienciaPlayer jogador />
-        </div>
       </header>
       <DestaqueSuperior />
       <ResumoJogador minhaFicha={possuiFicha ? minhaFicha : null} iniciativa={iniciativa} />

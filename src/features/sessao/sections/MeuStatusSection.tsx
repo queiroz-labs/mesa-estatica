@@ -86,8 +86,7 @@ export default function MeuStatusSection() {
           determinação {ficha.determinacao}/2
         </span>
         <span
-          className="badge"
-          style={abeiraDeSePerder ? { borderColor: 'var(--ruido)', color: 'var(--ruido)' } : undefined}
+          className={`badge${abeiraDeSePerder ? ' badge--perigo' : ''}`}
           title={
             abeiraDeSePerder
               ? 'traumas ativos: 3 ou mais — à beira de se perder'

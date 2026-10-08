@@ -29,4 +29,9 @@
   --font-display: 'Barlow Condensed', sans-serif;
   --font-body: 'Barlow', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Controles: dois tamanhos, com alvos maiores em telas de toque. */
+  --controle-altura: 32px;
+  --controle-altura-compacta: 28px;
+  --controle-raio: 2px;
 }

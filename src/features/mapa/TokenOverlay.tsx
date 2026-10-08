@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Avatar from '../../components/Avatar';
+import Icone from '../../components/Icone';
 import InputNumeroDraft from '../../components/InputNumeroDraft';
 import { comprimirImagemAvatar } from '../../lib/comprimirImagem';
 import { uploadImagemStorage } from '../../multiplayer/uploadImagemStorage';
@@ -13,6 +14,7 @@ import type { Ficha } from '../../state/types';
 import { NOMES_TIPO_REGULADOR } from '../fichas/sections/ReguladoresSection';
 import { CONDICOES_COMBATE } from '../../rules/data/condicoesCombate';
 import ArmasCombateNpc from '../combate/ArmasCombateNpc';
+import { IconeLamina } from '../combate/icones';
 
 const EMPTY_CONDICOES: string[] = [];
 const EMPTY_DURACAO: Record<string, number> = {};
@@ -35,13 +37,13 @@ function StepperLinha({ label, atual, maximo, onAjustar }: StepperProps) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
       <span className="vazio">{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-        <button className="icone-botao" onClick={() => onAjustar(-1)}>
+        <button className="controle-icone" onClick={() => onAjustar(-1)} aria-label={`reduzir ${label}`} title={`reduzir ${label}`}>
           −
         </button>
         <span className="mono">
           {atual} / {maximo}
         </span>
-        <button className="icone-botao" onClick={() => onAjustar(1)}>
+        <button className="controle-icone" onClick={() => onAjustar(1)} aria-label={`aumentar ${label}`} title={`aumentar ${label}`}>
           +
         </button>
       </div>
@@ -154,7 +156,7 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
       }}
       onClick={onFechar}
     >
-      <div className="secao" style={{ width: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }} onClick={(e) => e.stopPropagation()}>
+      <div className="secao" style={{ width: 'min(320px, calc(100vw - 2rem))', maxHeight: 'calc(100vh - 2rem)', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
             <Avatar
@@ -168,8 +170,8 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
             />
             <h3 style={{ margin: 0 }}>{(tipo === 'pc' ? ficha!.nome : npc!.nome) || 'sem nome'}</h3>
           </div>
-          <button className="icone-botao" onClick={onFechar} title="fechar (Esc)" style={{ color: 'var(--ruido)' }}>
-            ×
+          <button className="controle-icone" onClick={onFechar} title="fechar (Esc)" aria-label="fechar detalhes do token">
+            <Icone nome="fechar" />
           </button>
         </div>
 
@@ -226,7 +228,7 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
             </div>
 
             <div className="vazio" style={{ fontSize: 12, textAlign: 'center', marginTop: '0.5rem', color: 'var(--real)' }}>
-              🛡 defesa: <span className="mono">{calcularDefesa(ficha.atributos.agilidade, ficha.equipamentoModificadorDefesa)}</span>
+              <Icone nome="escudo" /> defesa: <span className="mono">{calcularDefesa(ficha.atributos.agilidade, ficha.equipamentoModificadorDefesa)}</span>
             </div>
 
             <div style={{ marginTop: '0.6rem' }}>
@@ -288,10 +290,10 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
                   <span
                     key={a.id}
                     className="badge"
-                    style={{ fontSize: 10 }}
+                    style={{ fontSize: 12 }}
                     title={`${a.nome || 'sem nome'}${a.bonusAtaque ? ` · bônus: ${a.bonusAtaque}` : ''}${a.dano ? ` · dano: ${a.dano}` : ''}${a.alcance ? ` · alcance: ${a.alcance}` : ''}${a.nota ? ` · ${a.nota}` : ''}`}
                   >
-                    🗡 {a.nome || 'sem nome'}
+                    <IconeLamina /> {a.nome || 'sem nome'}
                   </span>
                 ))}
               </span>
@@ -303,28 +305,28 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
           {tipo === 'npc' && npc && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-              <label className="mapa-upload-botao" style={{ fontSize: 10 }}>
+              <label className="mapa-upload-botao" style={{ fontSize: 12 }}>
                 {comprimindoFoto ? 'comprimindo…' : npc.foto ? 'trocar foto' : 'carregar foto'}
                 <input type="file" accept="image/*" hidden onChange={handleFotoNpc} disabled={comprimindoFoto} />
               </label>
               {npc.foto && (
-                <button className="icone-botao" onClick={() => atualizarNpc(npc.id, { foto: null })} title="remover foto" style={{ fontSize: 10 }}>
-                  ×
+                <button className="controle-icone" onClick={() => atualizarNpc(npc.id, { foto: null })} title="remover foto" aria-label="remover foto do NPC">
+                  <Icone nome="lixeira" />
                 </button>
               )}
-              <span
-                className="icone-botao"
-                role="button"
-                tabIndex={0}
+              <button
+                className="controle-icone"
                 onClick={() => atualizarNpc(npc.id, { visivel: !npc.visivel })}
+                aria-label={npc.visivel ? 'ocultar dos jogadores' : 'revelar aos jogadores'}
+                aria-pressed={npc.visivel}
                 title={npc.visivel ? 'ocultar dos jogadores' : 'revelar aos jogadores'}
-                style={{ color: npc.visivel ? 'var(--rede)' : 'var(--ink-faint)', fontSize: 14, marginLeft: 'auto' }}
+                style={{ color: npc.visivel ? 'var(--rede)' : 'var(--ink-dim)', marginLeft: 'auto' }}
               >
-                {npc.visivel ? '👁' : '👁‍🗨'}
-              </span>
+                <Icone nome={npc.visivel ? 'olho' : 'olho-fechado'} />
+              </button>
             </div>
             <div style={{ marginBottom: '0.5rem' }}>
-            <span className="vazio" style={{ fontSize: 12, color: 'var(--real)' }}>🛡 defesa: <span className="mono">{npc.defesa}</span></span>
+            <span className="vazio" style={{ fontSize: 12, color: 'var(--real)' }}><Icone nome="escudo" /> defesa: <span className="mono">{npc.defesa}</span></span>
             </div>
             {(() => {
               const { morto, desacordado } = calcularEstadoTokenCombate(npc.pvAtual, npc.pvMaximo, condicoesAtivas);
@@ -400,8 +402,9 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
                           <button
                             className="icone-botao"
                             title="reduzir duração — 0 volta a manual/persistente (sem prazo)"
+                            aria-label={`reduzir duração de ${c.nome}`}
                             onClick={() => definirDuracaoCondicao(id, c.id, rodadasRestantes - 1)}
-                            style={{ fontSize: 11, padding: '0.05em 0.3em' }}
+                            style={{ fontSize: 12 }}
                           >
                             −
                           </button>
@@ -409,8 +412,9 @@ export default function TokenOverlay({ tipo, id, onFechar }: Props) {
                         <button
                           className="icone-botao"
                           title="duração em rodadas — desliga sozinha quando chegar a 0 no fim do turno dela (mesmo mecanismo de Aguardando)"
+                          aria-label={`aumentar duração de ${c.nome}`}
                           onClick={() => definirDuracaoCondicao(id, c.id, (rodadasRestantes ?? 0) + 1)}
-                          style={{ fontSize: 11, padding: '0.05em 0.3em' }}
+                          style={{ fontSize: 12 }}
                         >
                           +
                         </button>

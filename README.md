@@ -40,7 +40,7 @@ Ignorados enquanto o foco está num campo de texto.
 concluídas. Durante um arrasto, cancela o rascunho. Encerrar ou resetar o combate pede
 confirmação; os nomes dos alvos selecionados aparecem antes do dano em grupo.
 
-O jogador vê **PV, Defesa e Determinação** acima das abas. Quando chega seu turno,
+O jogador vê **PV, Defesa e Determinação** no topo da tela. Quando chega seu turno,
 **sua vez** aparece nesse resumo, mesmo fora da aba de combate.
 
 No quadro privado de **Pistas**, **revelar aos jogadores** publica o texto e o campo
@@ -56,6 +56,13 @@ O soundpad continua disparando efeitos pontuais. Os jogadores usam **habilitar �
 por página quando o navegador pedir; **mudo** silencia os três canais só para quem clicou.
 O botão **áudio** no cabeçalho do mestre permite pausar/retomar e ajustar os volumes de
 música e ambiência em qualquer aba. Esses ajustes valem para todos os jogadores.
+
+Os volumes mostram o nome do canal e a porcentagem. No cabeçalho do mestre,
+**registrado** informa o salvamento local; **conexão ativa**, com símbolo de Wi-Fi,
+informa o estado da conexão da mesa. Clique no indicador para ver detalhes. Uma conexão
+ativa não confirma que todos os jogadores já receberam cada alteração.
+Os botões e ferramentas usam ícones consistentes, foco visível ao navegar pelo teclado
+e áreas maiores em telas de toque. Cabeçalhos, fichas, dados e painéis se ajustam à largura.
 
 ## Resultados dos dados
 

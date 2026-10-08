@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CHAVE_TOKEN_MESTRE, trocarTokenMestre, verificarVinculoMestre, vincularComoMestre } from '../../multiplayer/auth';
 import { useVinculoMestreStore } from '../../multiplayer/vinculoMestreStore';
+import Icone from '../../components/Icone';
+import '../../app/statusIndicadores.css';
 
 const CHAVE_TOKEN = CHAVE_TOKEN_MESTRE;
 
@@ -21,7 +23,12 @@ type StatusTroca = 'idle' | 'trocando' | 'sucesso';
 export default function VinculoMestre() {
   const vinculo = useVinculoMestreStore((s) => s.status);
   const [modalAberto, setModalAberto] = useState(false);
-  const [token, setToken] = useState(() => localStorage.getItem(CHAVE_TOKEN) ?? '');
+  const gatilhoRef = useRef<HTMLButtonElement>(null);
+  const dialogoRef = useRef<HTMLDivElement>(null);
+  const [token, setToken] = useState(() => {
+    try { return localStorage.getItem(CHAVE_TOKEN) ?? ''; }
+    catch { return ''; }
+  });
   const [statusModal, setStatusModal] = useState<StatusModal>('idle');
   const [erro, setErro] = useState<string | null>(null);
   const [trocaAberta, setTrocaAberta] = useState(false);
@@ -45,11 +52,27 @@ export default function VinculoMestre() {
 
   useEffect(() => {
     if (!modalAberto) return;
+    const gatilho = gatilhoRef.current;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') fechar();
+      if (e.key !== 'Tab') return;
+      const controles = dialogoRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex="0"]');
+      if (!controles?.length) return;
+      const primeiro = controles[0];
+      const ultimo = controles[controles.length - 1];
+      if (e.shiftKey && document.activeElement === primeiro) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        e.preventDefault();
+        primeiro.focus();
+      }
     };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      gatilho?.focus();
+    };
   }, [modalAberto]);
 
   const fechar = () => {
@@ -96,27 +119,29 @@ export default function VinculoMestre() {
     setTimeout(() => window.location.reload(), 700);
   };
 
-  const corPill = vinculo === 'vinculado' ? 'var(--rede)' : vinculo === 'nao-vinculado' ? 'var(--ruido)' : 'var(--ink-dim)';
-  const simboloPill = vinculo === 'vinculado' ? '●' : vinculo === 'nao-vinculado' ? '○' : '·';
+  const textoPill = vinculo === 'vinculado' ? 'mestre vinculado' : vinculo === 'nao-vinculado' ? 'mestre não vinculado' : 'verificando mestre';
   const tituloPill =
     vinculo === 'vinculado'
-      ? 'sessão vinculada como mestre — clique pra revincular'
+      ? 'vínculo de mestre desta sessão — abrir opções'
       : vinculo === 'nao-vinculado'
-        ? 'sessão não vinculada — RLS bloqueia leitura/escrita de mestre. clique pra colar o token'
+        ? 'sessão não vinculada — abrir vínculo de mestre'
         : 'checando vínculo de mestre…';
 
   return (
     <>
-      <span
-        className="mono"
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
+        className="mono status-vinculo"
+        ref={gatilhoRef}
+        data-vinculo={vinculo}
         onClick={() => setModalAberto(true)}
         title={tituloPill}
-        style={{ fontSize: '11px', color: corPill, cursor: 'pointer' }}
+        aria-haspopup="dialog"
+        aria-expanded={modalAberto}
       >
-        {simboloPill} mestre
-      </span>
+        <Icone nome={vinculo === 'checando' ? 'relogio' : 'escudo'} size={14} />
+        {textoPill}
+      </button>
 
       {modalAberto && (
         <div
@@ -133,16 +158,21 @@ export default function VinculoMestre() {
         >
           <div
             className="secao"
-            style={{ width: 400, maxWidth: '90vw', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
+            ref={dialogoRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vinculo-mestre-titulo"
+            aria-describedby="vinculo-mestre-descricao"
+            style={{ width: 400, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>vínculo de mestre</h3>
-              <button className="icone-botao" onClick={fechar} title="fechar (Esc)" style={{ color: 'var(--ruido)' }}>
-                ×
+              <h3 id="vinculo-mestre-titulo" style={{ margin: 0 }}>vínculo de mestre</h3>
+              <button type="button" className="icone-botao" onClick={fechar} title="fechar (Esc)" aria-label="fechar vínculo de mestre">
+                <Icone nome="fechar" size={14} />
               </button>
             </div>
-            <p className="vazio" style={{ margin: 0 }}>
+            <p id="vinculo-mestre-descricao" className="vazio" style={{ margin: 0, color: 'var(--ink-dim)' }}>
               sem isso, esta sessão não lê nem escreve dados de mestre. o token fica salvo neste navegador — não aparece na URL nem em
               prints.
             </p>
@@ -152,6 +182,7 @@ export default function VinculoMestre() {
             <input
               id="vinculo-mestre-token"
               type="password"
+              autoFocus
               value={token}
               onChange={(e) => {
                 setToken(e.target.value);
@@ -159,7 +190,7 @@ export default function VinculoMestre() {
               }}
               style={{ width: '100%' }}
             />
-            {erro && <span style={{ color: 'var(--ruido)', fontSize: '12px' }}>{erro}</span>}
+            {erro && <span role="alert" style={{ color: 'var(--ink)', fontSize: '13px' }}>{erro}</span>}
             {statusModal === 'sucesso' && <span style={{ color: 'var(--rede)', fontSize: '12px' }}>vinculado — recarregando…</span>}
             <button className="acento" onClick={vincular} disabled={!token.trim() || statusModal !== 'idle'}>
               {statusModal === 'vinculando' ? 'vinculando…' : 'vincular'}
@@ -203,7 +234,7 @@ export default function VinculoMestre() {
                   }}
                   style={{ width: '100%' }}
                 />
-                {erroTroca && <span style={{ color: 'var(--ruido)', fontSize: '12px' }}>{erroTroca}</span>}
+                {erroTroca && <span role="alert" style={{ color: 'var(--ink)', fontSize: '13px' }}>{erroTroca}</span>}
                 {statusTroca === 'sucesso' && <span style={{ color: 'var(--rede)', fontSize: '12px' }}>token trocado.</span>}
                 <button
                   className="acento"

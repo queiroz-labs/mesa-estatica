@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import Icone from '../../components/Icone';
 import { fadeVolume } from '../../lib/audioFade';
 import { posicionarMidia } from '../../lib/midiaPlayback';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
@@ -154,16 +155,16 @@ export default function MidiaPlayerJogador() {
         }}
       >
         {!desbloqueado ? (
-          <button onClick={habilitar} style={{ fontSize: '11px', padding: '0.3em 0.6em' }}>
+          <button onClick={habilitar} style={{ fontSize: '12px', padding: '0.3em 0.6em' }}>
             habilitar áudio
           </button>
         ) : (
           <>
-            <span style={{ color: 'var(--rede)' }}>♪</span>
+            <Icone nome="musica" style={{ color: 'var(--rede)' }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {faixaAtual ? faixaAtual.nome : 'sem áudio tocando'}
             </span>
-            <button className="icone-botao" onClick={() => definirMudo(!mudo)} title={mudo ? 'ativar som' : 'mudo (só pra você)'} style={{ fontSize: '10px' }}>
+            <button className="icone-botao" onClick={() => definirMudo(!mudo)} title={mudo ? 'ativar som' : 'mudo (só pra você)'} aria-label={mudo ? 'ativar som para você' : 'silenciar som para você'} aria-pressed={!mudo} style={{ fontSize: '12px' }}>
               {mudo ? 'mudo' : 'som'}
             </button>
           </>

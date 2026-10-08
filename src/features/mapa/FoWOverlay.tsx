@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import { useFowStore } from '../../state/fowStore';
 import { useStore } from '../../state/store';
 import type { ZonaFoW } from '../../state/types';
@@ -210,6 +211,8 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
         <button
           className="icone-botao"
           data-ativo={fow.ativa ? 'true' : undefined}
+          aria-pressed={fow.ativa}
+          aria-label="névoa do mapa"
           onClick={() => definirFoWAtivo(!fow.ativa)}
           title="ligar/desligar fog of war neste mapa (não apaga o que já foi revelado)"
         >
@@ -219,6 +222,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
         <button
           className="icone-botao"
           data-ativo={modo === 'revelar' ? 'true' : undefined}
+          aria-pressed={modo === 'revelar'}
           onClick={() => trocarModo('revelar')}
           title="revelar (entra em vistas e luz atual) — Esc sai do desenho"
         >
@@ -227,6 +231,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
         <button
           className="icone-botao"
           data-ativo={modo === 'cobrirLuz' ? 'true' : undefined}
+          aria-pressed={modo === 'cobrirLuz'}
           onClick={() => trocarModo('cobrirLuz')}
           title="cobrir luz (mantém memória) — Esc sai do desenho"
         >
@@ -235,6 +240,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
         <button
           className="icone-botao"
           data-ativo={modo === 'esquecer' ? 'true' : undefined}
+          aria-pressed={modo === 'esquecer'}
           onClick={() => trocarModo('esquecer')}
           title="esquecer (some com a área — volta a nunca-visto) — Esc sai do desenho"
         >
@@ -246,6 +252,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
             <button
               className="icone-botao"
               data-ativo={fow.zonaAtual === 'rua' ? 'true' : undefined}
+              aria-pressed={fow.zonaAtual === 'rua'}
               onClick={() => trocarZona('rua')}
               title="atmosfera da cena: rua (âmbar — analógico/humano)"
               style={{ color: 'var(--real)' }}
@@ -255,6 +262,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
             <button
               className="icone-botao"
               data-ativo={fow.zonaAtual === 'corporativo' ? 'true' : undefined}
+              aria-pressed={fow.zonaAtual === 'corporativo'}
               onClick={() => trocarZona('corporativo')}
               title="atmosfera da cena: corporativo (ciano — rede/sistema)"
               style={{ color: 'var(--rede)' }}
@@ -265,12 +273,12 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
         )}
         {temFoW && (
           <button
-            className="icone-botao"
+            className="controle-icone"
             onClick={() => setModalApagarAberto(true)}
+            aria-label="apagar memória da névoa do mapa"
             title="apagar toda a memória do FoW neste mapa (revelado e coberto) e desligar — não dá pra desfazer"
-            style={{ color: 'var(--ruido)' }}
           >
-            ×
+            <Icone nome="lixeira" />
           </button>
         )}
       </div>
@@ -294,7 +302,6 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
               width: 400,
               maxWidth: '90vw',
               borderColor: 'var(--ruido)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.6rem',

@@ -4,6 +4,7 @@ import { corPv } from '../../../hooks/useIniciativa';
 import { NOME_TIER_RUIDO } from '../../ruido/RuidoOverlay';
 import { useStore } from '../../../state/store';
 import BarraSegmentada from '../../fichas/BarraSegmentada';
+import BadgePrivado from '../../../components/BadgePrivado';
 
 const COR_TIER_RUIDO: Record<0 | 1 | 2 | 3, string> = {
   0: 'var(--ink)',
@@ -32,7 +33,7 @@ export default function StatusGrupoSection() {
   return (
     <section className="secao">
       <h3>
-        status do grupo <span className="badge">privado</span>
+        status do grupo <BadgePrivado />
       </h3>
       {fichas.length === 0 ? (
         <p className="vazio">nenhum personagem na mesa ainda.</p>
@@ -69,8 +70,7 @@ export default function StatusGrupoSection() {
                       det {ficha.determinacao}/2
                     </span>
                     <span
-                      className="badge"
-                      style={abeiraDeSePerder ? { borderColor: 'var(--ruido)', color: 'var(--ruido)' } : undefined}
+                      className={`badge${abeiraDeSePerder ? ' badge--perigo' : ''}`}
                       title={
                         abeiraDeSePerder
                           ? 'traumas ativos: 3 ou mais — à beira de se perder'
@@ -81,8 +81,7 @@ export default function StatusGrupoSection() {
                     </span>
                     {emSurto && (
                       <span
-                        className="badge"
-                        style={{ borderColor: 'var(--ruido)', color: 'var(--ruido)' }}
+                        className="badge badge--perigo"
                         title="surto ativo agora — efeito especial em jogo"
                       >
                         surto
@@ -92,7 +91,7 @@ export default function StatusGrupoSection() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem' }}>
-                  <span className="label" style={{ fontSize: '10px', width: '2.4em', flexShrink: 0 }}>
+                  <span className="label" style={{ fontSize: '12px', width: '2.4em', flexShrink: 0 }}>
                     pv
                   </span>
                   <div style={{ flex: 1 }} title={`Pontos de Vida: ${ficha.pvAtual} de ${pvMaximo}`}>
@@ -110,7 +109,7 @@ export default function StatusGrupoSection() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.3rem' }}>
-                  <span className="label" style={{ fontSize: '10px', width: '2.4em', flexShrink: 0 }}>
+                  <span className="label" style={{ fontSize: '12px', width: '2.4em', flexShrink: 0 }}>
                     san
                   </span>
                   <div
@@ -121,7 +120,7 @@ export default function StatusGrupoSection() {
                   </div>
                   <span style={{ flexShrink: 0, textAlign: 'right', color: COR_TIER_RUIDO[tierRuido] }}>
                     {ficha.sanidadeAtual}/{sanidadeMaxima}{' '}
-                    <span style={{ fontSize: '11px', opacity: 0.7 }}>{NOME_TIER_RUIDO[tierRuido]}</span>
+                    <span style={{ fontSize: '12px', color: 'var(--ink-dim)' }}>{NOME_TIER_RUIDO[tierRuido]}</span>
                   </span>
                 </div>
               </div>

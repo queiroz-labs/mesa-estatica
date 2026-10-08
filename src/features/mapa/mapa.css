@@ -29,7 +29,28 @@
   padding: 0.3em 0.6em;
 }
 
+/* Ações da mesa usam a mesma geometria do painel; os tokens mantêm seu formato próprio. */
+.mapa-ferramenta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.mapa-ferramenta[data-ativo='true'] {
+  border-color: var(--rede-dim);
+  color: var(--rede);
+}
+
 .mapa-upload-botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--controle-altura);
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -109,14 +130,16 @@
 
 .mapa-token__remover {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  top: -12px;
+  right: -12px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 2px;
   background: var(--concrete-1);
-  border: 1px solid var(--ruido-dim);
-  color: var(--ruido);
+  border: 1px solid var(--concrete-2);
+  color: var(--ink-dim);
   font-size: 11px;
   line-height: 1;
   display: flex;
@@ -159,52 +182,35 @@
   outline-offset: 3px;
 }
 
-/* Fora de combate (0 PV OU marcação manual do mestre — MapaTab.tsx/MapaJogadorView.tsx já
-   combinam os dois) — token dessaturado e apagado, sem cobrir o avatar. Símbolo de sono (💤)
-   por cima, grande o suficiente pra ler à distância — mesmo raciocínio do `::after` de "morto"
-   logo abaixo: emoji ignora `color`/preenchimento de texto, o `text-shadow` só ajuda a separar
-   do fundo variado do token. */
+/* Fora de combate (0 PV OU marcação manual) — ícone geométrico e legenda acessível nos
+   dois apps, conservando a precedência de morto sobre desacordado. */
 .mapa-token[data-desacordado='true'] {
   filter: grayscale(0.85);
   opacity: 0.85;
 }
 
-.mapa-token[data-desacordado='true']::after {
-  content: '💤';
+.mapa-token__estado {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: var(--ink);
   pointer-events: none;
 }
 
-/* Morto (PV na metade negativa OU marcação manual) — precedência sobre "desacordado" (o
-   componente já garante que os dois `data-*` nunca vêm juntos): dessaturação total + caveira
-   por cima, pra distinguir de "só caído/estabilizável" à distância. Tamanho aumentado (18px →
-   28px, achado 03/09: ficava pequena demais pra ler à distância/print, ainda mais em cima de um
-   token já com opacidade reduzida). */
+.mapa-token__estado svg {
+  background: color-mix(in srgb, var(--concrete-0) 90%, transparent);
+  border-radius: 2px;
+}
+
+/* Morto (PV na metade negativa OU marcação manual). */
 .mapa-token[data-morto='true'] {
   filter: grayscale(1);
   opacity: 0.75;
 }
 
-.mapa-token[data-morto='true']::after {
-  content: '☠';
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  color: var(--ink);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-  pointer-events: none;
-}
-
-/* Condições de combate ativas — canto inferior-esquerdo, oposto ao × de remover. Mostra a
+/* Condições de combate ativas — canto inferior-esquerdo, oposto à ação de remover. Mostra a
    abreviação (3 letras) da 1ª condição ativa + "+N" se houver mais (badgeCondicoes,
    condicoesCombate.ts) — um número sozinho não dizia QUAL condição, só quantas; hover no
    token continua trazendo os nomes completos via `title`. */
@@ -219,7 +225,7 @@
   border: 1px solid var(--rede-dim);
   color: var(--rede);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.02em;
   line-height: 1;
   white-space: nowrap;
@@ -253,8 +259,8 @@
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-size: 10px;
-  color: var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-dim);
   display: block;
   margin-bottom: 0.2rem;
 }
@@ -272,7 +278,7 @@
   border: 1px solid var(--concrete-2);
   border-radius: 3px;
   background: transparent;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   cursor: pointer;
 }
 
@@ -317,7 +323,7 @@
   height: 22px;
   margin-left: -11px;
   margin-top: -11px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: color-mix(in srgb, var(--concrete-0) 80%, transparent);
   border: 1px solid var(--rede);
   color: var(--rede);
@@ -444,6 +450,7 @@
   transform: translateX(-50%);
   z-index: 41;
   display: flex;
+  align-items: center;
   gap: 0.3rem;
 }
 
@@ -474,10 +481,33 @@
   bottom: 0.5rem;
   right: 0.5rem;
   z-index: 41;
-  max-width: 240px;
+  max-width: 260px;
   padding: 0.4rem 0.5rem;
   background: var(--concrete-0);
   border: 1px solid var(--rede-dim);
-  border-radius: 4px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+  .mapa-ferramenta {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .mapa-aoe-painel {
+    bottom: 4rem;
+    max-width: calc(100% - 1rem);
+  }
+}
+
+@media (max-width: 480px) {
+  /* A barra inteira precisa caber dentro do mapa, abaixo dos controles dos cantos. */
+  .mapa-area .fow-toolbar {
+    top: 3.75rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    flex-wrap: wrap;
+  }
 }

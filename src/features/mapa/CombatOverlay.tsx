@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import { useIniciativa } from '../../hooks/useIniciativa';
 import { gerarResumoCombate } from '../../rules/combate';
 import { useStore } from '../../state/store';
@@ -45,10 +46,10 @@ export default function CombatOverlay() {
     const rect = area.getBoundingClientRect();
     const dx = ev.clientX - arrastando.origemX;
     const dy = ev.clientY - arrastando.origemY;
-    const alturaPainel = painelRef.current?.offsetHeight ?? 200;
+    const alturaPainel = painelRef.current?.parentElement?.offsetHeight ?? 200;
     const larguraPainel = painelRef.current?.offsetWidth ?? 380;
     const maxX = rect.width - larguraPainel - 8;
-    const maxY = rect.height - Math.min(alturaPainel + 16, rect.height - 16);
+    const maxY = rect.height - Math.min(alturaPainel + 8, rect.height - 8);
     setPanelPos({
       x: Math.max(0, Math.min(arrastando.painelX + dx, maxX)),
       y: Math.max(8, Math.min(arrastando.painelY + dy, maxY)),
@@ -152,16 +153,17 @@ export default function CombatOverlay() {
             {vista === 'iniciativa' ? 'log' : 'iniciativa'}
           </button>
           <button
-            className="icone-botao"
+            className="controle-icone"
             onClick={copiarResumo}
             title="copiar resumo do combate (markdown)"
+            aria-label={copiado ? 'resumo copiado' : 'copiar resumo do combate'}
             onPointerDown={(ev) => ev.stopPropagation()}
             style={{ display: 'inline-flex', alignItems: 'center', color: copiado ? 'var(--rede)' : undefined }}
           >
             {copiado ? <IconeCheck /> : <IconePrancheta />}
           </button>
-          <button className="icone-botao" onClick={() => { setPanelPos({ x: 8, y: 8 }); setAberto(false); }} title="fechar" onPointerDown={(ev) => ev.stopPropagation()}>
-            ×
+          <button className="controle-icone" onClick={() => { setPanelPos({ x: 8, y: 8 }); setAberto(false); }} title="fechar" aria-label="fechar painel de combate" onPointerDown={(ev) => ev.stopPropagation()}>
+            <Icone nome="fechar" />
           </button>
         </div>
       </div>
@@ -188,7 +190,6 @@ export default function CombatOverlay() {
             style={{
               fontSize: 13, padding: '0.3em 0.7em', flexShrink: 0,
               display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-              boxShadow: '0 0 12px var(--rede-glow)',
             }}
           >
             próximo <IconeSeta size={13} />
@@ -208,13 +209,14 @@ export default function CombatOverlay() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
+        ...(aberto ? { width: 'min(480px, calc(100% - 16px))', maxHeight: 'calc(100% - 16px)' } : {}),
       }}
     >
       {aberto && (
         <div
           ref={painelRef}
           className="secao"
-          style={{ width: 'min(480px, calc(100vw - 16px))', maxHeight: '70vh', overflowY: 'auto', marginBottom: '0.6rem', boxShadow: '0 4px 24px rgba(0,0,0,0.5)', padding: '0.75rem 1rem' }}
+          style={{ width: '100%', maxHeight: '70vh', minHeight: 0, flexShrink: 1, overflowY: 'auto', marginBottom: '0.6rem', padding: '0.75rem 1rem' }}
         >
           {vista === 'iniciativa' ? (
             <IniciativaPanel
@@ -232,13 +234,12 @@ export default function CombatOverlay() {
         </div>
       )}
       <button
+        className="mapa-ferramenta"
         onClick={toggleAberto}
         title="abrir painel de combate"
-        style={
-          iniciativa.modoCombate
-            ? { borderRadius: '50%', width: 48, height: 48, padding: 0, borderColor: 'var(--rede-dim)', color: 'var(--rede)' }
-            : { borderRadius: '50%', width: 48, height: 48, padding: 0 }
-        }
+        aria-label="painel de combate"
+        aria-expanded={aberto}
+        data-ativo={iniciativa.modoCombate}
       >
         ATK
       </button>

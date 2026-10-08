@@ -43,6 +43,9 @@ import LogTab from './LogTab';
 import StatusIndicador from './StatusIndicador';
 import { supabase } from '../lib/supabaseClient';
 import { uploadR2 } from '../multiplayer/uploadR2';
+import Icone, { type NomeIcone } from '../components/Icone';
+import { IconeAlerta } from '../features/combate/icones';
+import './cabecalho.css';
 
 const ATALHOS: Record<string, string> = {
   sessao: '1',
@@ -90,6 +93,8 @@ type MenuId = 'exportar' | 'importar' | null;
  *  chamado direto (mesmo padrão de degradação graciosa do resto do app). */
 function BotaoComMenu({
   label,
+  icone,
+  aviso = false,
   className,
   title,
   temNuvem,
@@ -101,6 +106,8 @@ function BotaoComMenu({
   onNuvem,
 }: {
   label: string;
+  icone: NomeIcone;
+  aviso?: boolean;
   className?: string;
   title?: string;
   temNuvem: boolean;
@@ -124,8 +131,10 @@ function BotaoComMenu({
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className={className} title={title} onClick={temNuvem ? onAbrir : onSemNuvem}>
+      <button className={`cabecalho__acao ${className ?? ''}`} title={title} onClick={temNuvem ? onAbrir : onSemNuvem} aria-expanded={temNuvem ? aberto : undefined}>
+        <Icone nome={icone} />
         {label}
+        {aviso && <IconeAlerta size={14} />}
       </button>
       {aberto && (
         <div
@@ -234,11 +243,12 @@ function ExportarImportar({ abrirControle }: { abrirControle: () => void }) {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-      <StatusIndicador />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+    <div className="cabecalho__acoes">
+      <div className="cabecalho__acoes">
         <BotaoComMenu
-          label={precisaBackup ? 'exportar ⚠' : 'exportar'}
+          label="exportar"
+          icone="download"
+          aviso={precisaBackup}
           className={precisaBackup ? 'acento' : undefined}
           title={precisaBackup ? 'já faz 15+ min do último backup — considere exportar de novo' : 'confie no papel, não na nuvem'}
           temNuvem={!!supabase}
@@ -251,6 +261,7 @@ function ExportarImportar({ abrirControle }: { abrirControle: () => void }) {
         />
         <BotaoComMenu
           label="importar"
+          icone="upload"
           temNuvem={!!supabase}
           aberto={menuAberto === 'importar'}
           onAbrir={() => setMenuAberto('importar')}
@@ -260,18 +271,18 @@ function ExportarImportar({ abrirControle }: { abrirControle: () => void }) {
           onNuvem={() => setNuvemAberta(true)}
         />
         {statusNuvem === 'salvando' && (
-          <span className="vazio" style={{ fontSize: '11px' }}>
+          <span className="vazio" style={{ fontSize: '12px' }}>
             salvando na nuvem…
           </span>
         )}
         {statusNuvem === 'ok' && (
-          <span className="vazio" style={{ fontSize: '11px' }}>
+          <span className="vazio" style={{ fontSize: '12px' }}>
             salvo na nuvem
           </span>
         )}
         {statusNuvem === 'erro' && (
-          <span style={{ fontSize: '11px', color: 'var(--ruido)' }} title={erroNuvem ?? undefined}>
-            nuvem: falhou
+          <span className="mono" style={{ fontSize: '12px', color: 'var(--ink)' }} title={erroNuvem ?? undefined}>
+            <IconeAlerta size={14} /> nuvem: falhou
           </span>
         )}
         {/* botão de controle agora oculto; o controle é acessível clicando no título principal */}
@@ -401,32 +412,28 @@ export default function App() {
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="mesa-shell">
       <GateOverlay />
       <AvisoSupabaseAusente />
       <RuidoOverlay incluirSanidade={false} />
       <AlertaOverlay />
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          flexShrink: 0,
-          gap: '0.6rem 1rem',
-          padding: '0.75rem 1.5rem',
-          borderBottom: '1px solid var(--concrete-2)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem 1.5rem', minWidth: 0 }}>
-          <h1
-            onClick={abrirControle}
-            title="abrir controle — janela secreta do mestre (atalho: C)"
-            style={{ fontSize: '18px', margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            Estática — Mesa
+      <header className="cabecalho">
+        <div className="cabecalho__topo">
+          <h1 className="cabecalho__titulo">
+            <button className="cabecalho__titulo-controle" onClick={abrirControle} title="abrir controle — janela secreta do mestre (atalho: C)">
+              Estática — Mesa
+            </button>
           </h1>
-          <nav style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+          <div className="cabecalho__acoes">
+            <MidiaPlayerGM />
+            <AmbienciaPlayer />
+            <SoundpadPlayer />
+            <RolagemAoVivoPlayer verProprias />
+            <ControleAudioRapido />
+            <ExportarImportar abrirControle={abrirControle} />
+          </div>
+        </div>
+          <nav className="cabecalho__abas" aria-label="Abas da mesa">
             {ABAS.map((a) => {
               const atalho = ATALHOS[a.id];
               const ativa = aba === a.id;
@@ -439,6 +446,7 @@ export default function App() {
               return (
                 <button
                   key={a.id}
+                  aria-current={ativa ? 'page' : undefined}
                   onClick={() => setAba(a.id)}
                   title={`${a.label} (atalho: ${atalho})`}
                   style={
@@ -454,15 +462,9 @@ export default function App() {
               );
             })}
           </nav>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem 1rem' }}>
-          <MidiaPlayerGM />
-          <AmbienciaPlayer />
-          <SoundpadPlayer />
-          <RolagemAoVivoPlayer verProprias />
-          <ControleAudioRapido />
+        <div className="cabecalho__operacao" aria-label="Estado da mesa">
           <VinculoMestre />
-          <ExportarImportar abrirControle={abrirControle} />
+          <StatusIndicador />
         </div>
       </header>
       <DestaqueSuperior />

@@ -11,7 +11,7 @@ const ambiente = vi.hoisted(() => ({
   refs: [] as { current: any }[], indiceRef: 0, indiceEfeito: 0,
   estados: [] as any[], indiceEstado: 0,
   efeitos: [] as { deps?: unknown[]; executar: () => void | (() => void); limpar?: () => void; rodar: boolean }[],
-  ready: true, rolando: false, erro: null as string | null,
+  ready: true, rolando: false, modo2D: true, erro: null as string | null,
   rolar: vi.fn(), reproduzir: vi.fn(), registrarLog: vi.fn(), registrarRoll: vi.fn(),
 }));
 
@@ -33,7 +33,7 @@ vi.mock('react', async (original) => ({
 vi.mock('../../state/store', () => ({ useStore: (selecionar: (s: any) => any) => selecionar({ config: { basePV: 20 }, registrarLog: ambiente.registrarLog, registrarRoll: ambiente.registrarRoll }) }));
 vi.mock('../../dice/useDiceBox', async (original) => ({
   ...await original<typeof import('../../dice/useDiceBox')>(),
-  useDiceBox: () => ({ ready: ambiente.ready, rolando: ambiente.rolando, erro: ambiente.erro, falhaRolagem: ambiente.erro !== null, modo2D: true, rolar: ambiente.rolar, reproduzir: ambiente.reproduzir }),
+  useDiceBox: () => ({ ready: ambiente.ready, rolando: ambiente.rolando, erro: ambiente.erro, falhaRolagem: ambiente.erro !== null, modo2D: ambiente.modo2D, rolar: ambiente.rolar, reproduzir: ambiente.reproduzir }),
 }));
 vi.mock('../../dice/useReproduzirRolagemAoVivo', () => ({ useReproduzirRolagemAoVivo: vi.fn() }));
 vi.mock('../../state/pedidoRolagemTesteStore', async (original) => {
@@ -56,13 +56,14 @@ function renderizar(ficha: Ficha) {
   ambiente.indiceRef = 0;
   ambiente.indiceEfeito = 0;
   ambiente.indiceEstado = 0;
-  RolagemAoVivoPlayer({ ficha });
+  const arvore = RolagemAoVivoPlayer({ ficha });
   for (const efeito of ambiente.efeitos) {
     if (!efeito.rodar) continue;
     efeito.limpar?.();
     efeito.limpar = efeito.executar() || undefined;
     efeito.rodar = false;
   }
+  return arvore;
 }
 
 beforeEach(() => {
@@ -72,6 +73,7 @@ beforeEach(() => {
   ambiente.estados = [];
   ambiente.ready = true;
   ambiente.rolando = false;
+  ambiente.modo2D = true;
   ambiente.erro = null;
   useRolagemAoVivoStore.setState({ atual: null, iniciando: null, mostrando: false });
 });
@@ -174,6 +176,29 @@ it('aviso remoto aparece antes do resultado e expira se o autor cair', () => {
   vi.advanceTimersByTime(16_000);
   expect(useRolagemAoVivoStore.getState().mostrando).toBe(false);
   expect(useRolagemAoVivoStore.getState().iniciando).toBeNull();
+});
+
+it('aviso longo sai do fluxo após 16s sem desmontar ou zerar a bandeja física', () => {
+  ambiente.modo2D = false;
+  const ficha = criarFichaVazia();
+  const origem = 'Arthur Santiago ' + 'nome extenso '.repeat(12);
+  const bandeja = (arvore: ReturnType<typeof renderizar>) => (arvore.props.children as any[]).find((no) => no?.props?.id === 'dice-ao-vivo');
+  const inicial = renderizar(ficha);
+  expect(bandeja(inicial).props.style).toMatchObject({ width: 60, height: 60 });
+
+  useRolagemAoVivoStore.getState().definirInicio({ id: 'inicio-longo', origem, cor: '#888888', tipo: 'teste' });
+  renderizar(ficha);
+  const visivel = renderizar(ficha);
+  expect(visivel.props.style.visibility).toBe('visible');
+  expect((visivel.props.children as any[])[1].props.children).toBe(`${origem} está rolando…`);
+  expect(bandeja(visivel).type).toBe(bandeja(inicial).type);
+  expect(bandeja(visivel).props.style).toMatchObject({ width: 60, height: 60 });
+
+  vi.advanceTimersByTime(16_000);
+  const oculto = renderizar(ficha);
+  expect(oculto.props.style).toMatchObject({ position: 'absolute', height: 0, visibility: 'hidden' });
+  expect(bandeja(oculto).type).toBe(bandeja(inicial).type);
+  expect(bandeja(oculto).props.style).toMatchObject({ width: 60, height: 60 });
 });
 
 it('reiniciar controles destrava os roladores sem repetir Sanidade já pedida', () => {

@@ -5,6 +5,8 @@ import { useMidiaUiStore } from '../../state/midiaUiStore';
 import { useStore } from '../../state/store';
 import { IconeMegafone, IconePause, IconePlay } from '../combate/icones';
 import './controleAudioRapido.css';
+import './midia.css';
+import Icone from '../../components/Icone';
 
 /** Controles do mestre; os players permanentes continuam sendo os únicos donos do áudio. */
 export default function ControleAudioRapido() {
@@ -84,7 +86,7 @@ export default function ControleAudioRapido() {
       <div className="audio-rapido-cabecalho">
         <h2 className="label">áudio</h2>
         <button type="button" className="audio-rapido-fechar" aria-label="fechar controle de áudio" title="fechar (Esc)"
-          onClick={() => { setAberto(false); botaoRef.current?.focus(); }}>×</button>
+          onClick={() => { setAberto(false); botaoRef.current?.focus(); }}><Icone nome="fechar" /></button>
       </div>
       <p className="audio-rapido-ajuda">pausa e volume valem para todos.</p>
       {canais.map(({ chave, nome, estado, alternar, definirVolume }) => {
@@ -102,11 +104,11 @@ export default function ControleAudioRapido() {
             {estado.tocando ? <IconePause size={12} /> : <IconePlay size={12} />}
             {estado.tocando ? 'pausar' : 'retomar'}
           </button>
-          <div className="audio-rapido-volume">
+          <div className="midia-volume midia-volume--compacto">
             <label htmlFor={`${id}-${chave}`}>volume {nome}</label>
-            <span className="mono">{Math.round(estado.volume * 100)}%</span>
             <input id={`${id}-${chave}`} type="range" min={0} max={1} step={0.05} value={estado.volume}
               onChange={(e) => definirVolume(Number(e.target.value))} />
+            <span className="mono midia-volume-valor">{Math.round(estado.volume * 100)}%</span>
           </div>
         </section>;
       })}

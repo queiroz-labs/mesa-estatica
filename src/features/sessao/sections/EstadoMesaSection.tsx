@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../../state/store';
 import BarraSegmentada from '../../fichas/BarraSegmentada';
 import { tierDeGauge } from '../AlertaOverlay';
+import BadgePrivado from '../../../components/BadgePrivado';
 
 function formatarDuracao(ms: number): string {
   const totalMin = Math.floor(ms / 60000);
@@ -47,7 +48,7 @@ export default function EstadoMesaSection() {
   return (
     <section className="secao">
       <h3>
-        estado da mesa <span className="badge">privado</span>
+        estado da mesa <BadgePrivado />
       </h3>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>

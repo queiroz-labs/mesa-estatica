@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import { consultarIsGm } from '../../multiplayer/auth';
 import { buscarOwnerToken, montarLinkJogador, regenerarOwnerToken } from '../../multiplayer/links';
 
@@ -90,13 +91,14 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
               : 'copiar link do jogador';
 
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-      <span
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+      <button
+        type="button"
         className="icone-botao"
-        role="button"
-        tabIndex={0}
+        disabled={status === 'carregando'}
         aria-disabled={status === 'carregando'}
         title={titulo}
+        aria-label={titulo}
         onClick={(e) => {
           e.stopPropagation();
           void copiar();
@@ -108,17 +110,18 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
           void copiar();
         }}
         style={{
-          color: status === 'copiado' ? 'var(--rede)' : status.startsWith('erro') ? 'var(--ruido)' : undefined,
+          color: status === 'copiado' ? 'var(--rede)' : status.startsWith('erro') ? 'var(--ink)' : undefined,
         }}
       >
-        🔗
-      </span>
-      <span
+        <Icone nome="link" />
+      </button>
+      <button
+        type="button"
         className="icone-botao"
-        role="button"
-        tabIndex={0}
+        disabled={status === 'carregando'}
         aria-disabled={status === 'carregando'}
         title="regenerar link (invalida o antigo)"
+        aria-label="regenerar link (invalida o antigo)"
         onClick={(e) => {
           e.stopPropagation();
           void regenerar();
@@ -130,8 +133,8 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
           void regenerar();
         }}
       >
-        ↻
-      </span>
+        <Icone nome="renovar" />
+      </button>
       {status === 'copiado' && (
         <span
           className="mono"
@@ -153,9 +156,9 @@ export default function LinkJogadorBotao({ fichaId, fichaNome }: Props) {
           link copiado
         </span>
       )}
-      {linkManual && <span role="status" className="mono" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 20, padding: '0.4rem', width: 300, background: 'var(--concrete-0)', border: '1px solid var(--ruido-dim)', fontSize: 11 }}>
+      {linkManual && <span role="status" className="mono" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 20, padding: '0.4rem', width: 300, maxWidth: '100%', background: 'var(--concrete-0)', border: '1px solid var(--concrete-2)', fontSize: 12 }}>
         cópia bloqueada — selecione e copie este link:
-        <input readOnly value={linkManual} aria-label="link do jogador para copiar manualmente" onFocus={(e) => e.currentTarget.select()} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ width: '100%', fontSize: 11 }} />
+        <input readOnly value={linkManual} aria-label="link do jogador para copiar manualmente" onFocus={(e) => e.currentTarget.select()} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} style={{ width: '100%', fontSize: 12 }} />
       </span>}
     </span>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import { formatarLogRolagem, normalizarTermos, useDiceBox } from '../../dice/useDiceBox';
 import { resolverRolagemJogador } from '../../multiplayer/rolagemRemota';
 import { calcularPvMaximo, estaFerido } from '../../rules/derivados';
@@ -185,30 +186,32 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
   return (
     <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 50 }}>
       {aberto && (
-        <div className="secao" style={{ width: 260, marginBottom: '0.6rem', boxShadow: '0 4px 24px rgba(0,0,0,0.5)' }}>
+        <div className="secao" style={{ width: 'min(260px, calc(100vw - 2.5rem))', marginBottom: '0.6rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h3 className="label" style={{ margin: 0 }}>
               d20 rápido
             </h3>
-            <button className="icone-botao" onClick={() => onAbertoChange(false)} title="fechar (atalho: X)">
-              ×
+            <button className="controle-icone" onClick={() => onAbertoChange(false)} title="fechar (atalho: X)" aria-label="fechar rolagem rápida">
+              <Icone nome="fechar" />
             </button>
           </div>
-          <div className="vazio" style={{ fontSize: 10, marginBottom: '0.4rem', textAlign: 'center' }}>
+          <div className="vazio" style={{ fontSize: 12, marginBottom: '0.4rem', textAlign: 'center' }}>
             atalhos: R=abrir/rolar · X=fechar
           </div>
 
           <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.5rem' }}>
             <button
               className={modo === 'simples' ? 'acento' : undefined}
-              style={{ flex: 1, fontSize: 11, padding: '0.35em' }}
+              aria-pressed={modo === 'simples'}
+              style={{ flex: 1, fontSize: 12, padding: '0.35em' }}
               onClick={() => setModo('simples')}
             >
               simples
             </button>
             <button
               className={modo === 'pericia' ? 'acento' : undefined}
-              style={{ flex: 1, fontSize: 11, padding: '0.35em' }}
+              aria-pressed={modo === 'pericia'}
+              style={{ flex: 1, fontSize: 12, padding: '0.35em' }}
               onClick={() => setModo('pericia')}
             >
               perícia
@@ -279,7 +282,7 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
 
         </div>
       )}
-      <button onClick={() => onAbertoChange(!aberto)} title="rolagem rápida (atalho: R)" style={{ borderRadius: '50%', width: 48, height: 48, padding: 0 }}>
+      <button className="controle-icone" onClick={() => onAbertoChange(!aberto)} title="rolagem rápida (atalho: R)" aria-label="rolagem rápida d20" aria-expanded={aberto} style={{ width: 40, height: 40 }}>
         d20
       </button>
     </div>

@@ -88,7 +88,7 @@ export default function AtributosDerivadosSection({ ficha, onChange, souMestre }
             <InputNumeroDraft value={ficha.pvAtual} onCommit={(valor) => ajustarPvAtual(ficha.id, valor)} />
           </div>
           <BarraSegmentada atual={ficha.pvAtual} maximo={pvMaximo} variante="pv" />
-          {ferido && <span className="badge" style={{ marginTop: '0.4rem' }}>ferido</span>}
+          {ferido && <span className="badge badge--perigo" style={{ marginTop: '0.4rem' }}>ferido</span>}
         </div>
 
         <div className="derivado-card">
@@ -192,7 +192,7 @@ export default function AtributosDerivadosSection({ ficha, onChange, souMestre }
               )}
             </span>
           ))}
-          {traumasAtivos >= 3 && <span className="badge">à beira de se perder — 3+ traumas</span>}
+          {traumasAtivos >= 3 && <span className="badge badge--perigo">à beira de se perder — 3+ traumas</span>}
         </div>
       )}
 

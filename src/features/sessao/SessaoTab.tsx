@@ -22,7 +22,7 @@ export default function SessaoTab() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(max(320px, (100% - 2rem) / 3), 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, max(320px, (100% - 2rem) / 3)), 1fr))',
           gap: '1rem',
         }}
       >

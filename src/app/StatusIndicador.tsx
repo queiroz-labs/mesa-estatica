@@ -1,20 +1,28 @@
+import type { ReactNode } from 'react';
 import { limparErroRuntime, statusSincronizacao, useStatusMesa } from '../lib/statusMesa';
+import { supabase } from '../lib/supabaseClient';
 import { usePendenciasDetalhe } from '../multiplayer/filaPendencias';
 import { IconeAlerta } from '../features/combate/icones';
+import Icone from '../components/Icone';
+import { recursosDaMesa } from './statusMensagens';
+import './statusIndicadores.css';
 
-/**
- * Substitui o "● registrado" estático que sempre dizia "salvo", mesmo quando a gravação
- * local tinha acabado de falhar (quota do localStorage estourada, Safari em modo privado) ou
- * a sincronização com os jogadores estava caída — o mestre só descobria ao vivo, quando um
- * jogador reclamava que não via nada atualizado.
- *
- * Cinco sinais independentes: `local` (localStorage deste navegador — sempre relevante, mesmo
- * 100% offline), `sync` (Realtime com os jogadores — só existe com Supabase configurado),
- * `erroRuntime` (algo quebrou fora do ciclo de render — `globalErrorHandler.ts` — sem passar
- * pelo Error Boundary; só aparece quando existe, clique reconhece e some), `online`
- * (`navigator.onLine` — pode cair antes de qualquer canal reportar erro) e pendências de
- * reenvio (`filaPendencias.ts` — pushes que falharam e aguardam a conexão voltar).
- */
+function Detalhe({ sinal, children, classe = '' }: { sinal: ReactNode; children: ReactNode; classe?: string }) {
+  return (
+    <details className={`status-detalhe ${classe}`} onKeyDown={(evento) => {
+      if (evento.key === 'Escape') {
+        evento.currentTarget.open = false;
+        evento.currentTarget.querySelector('summary')?.focus();
+        evento.stopPropagation();
+      }
+    }}>
+      <summary>{sinal}</summary>
+      <div className="status-detalhe__conteudo">{children}</div>
+    </details>
+  );
+}
+
+/** Sinais independentes: gravação neste navegador, conexão e envios que falharam. */
 export default function StatusIndicador() {
   const local = useStatusMesa((s) => s.local);
   const sync = useStatusMesa(statusSincronizacao);
@@ -22,62 +30,57 @@ export default function StatusIndicador() {
   const erroRuntime = useStatusMesa((s) => s.erroRuntime);
   const online = useStatusMesa((s) => s.online);
   const pendencias = usePendenciasDetalhe();
+  const recursosComErro = recursosDaMesa(canaisComErro);
+  const recursosPendentes = recursosDaMesa(pendencias.map((item) => item.modulo));
 
-  const corLocal = local === 'ok' ? 'var(--rede)' : 'var(--ruido)';
-  const textoLocal = local === 'ok' ? '● registrado' : 'não salvou local';
-  const tituloLocal =
-    local === 'ok'
-      ? 'salva a cada alteração — localStorage deste navegador'
-      : 'gravação local falhou (quota cheia ou navegador em modo privado) — exporte um backup agora';
-
-  const corSync = sync === 'erro' ? 'var(--ruido)' : sync === 'conectado' ? 'var(--rede)' : 'var(--ink-dim)';
-  const textoSync = sync === 'erro' ? 'sync com erro' : sync === 'conectado' ? '● sync ok' : '— local';
-  // nomear os canais caídos é o que separa "a rede oscilou" de "esta feature está quebrada" —
-  // um canal específico sempre com erro aponta pra policy/migração faltando no banco.
-  const nomesComErro = [...canaisComErro].sort().join(', ');
-  const tituloSync =
-    sync === 'erro'
-      ? `sincronização com os jogadores está falhando (${nomesComErro}) — eles podem estar vendo dados desatualizados`
-      : sync === 'conectado'
-        ? 'sincronizado com os jogadores em tempo real'
-        : 'sem sincronização — mesa rodando só nesta tela (sem Supabase configurado, ou ainda conectando)';
+  const textoConexao = !online ? 'sem internet' : sync === 'erro' ? 'sincronização com falha'
+    : sync === 'conectado' ? 'conexão ativa' : supabase ? 'conectando' : 'modo local';
+  const saudavel = online && sync === 'conectado';
 
   return (
-    <span className="mono" style={{ display: 'flex', gap: '0.6rem', fontSize: '11px' }}>
-      <span style={{ color: corLocal, display: 'inline-flex', alignItems: 'center', gap: '0.3em' }} title={tituloLocal}>
-        {local !== 'ok' && <IconeAlerta size={11} />}
-        {textoLocal}
-      </span>
-      <span style={{ color: corSync, display: 'inline-flex', alignItems: 'center', gap: '0.3em' }} title={tituloSync}>
-        {sync === 'erro' && <IconeAlerta size={11} />}
-        {textoSync}
-      </span>
-      {erroRuntime && (
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={() => limparErroRuntime()}
-          style={{ color: 'var(--ruido)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3em' }}
-          title={`${erroRuntime} — clique pra dispensar`}
-        >
-          <IconeAlerta size={11} />
-          erro inesperado
-        </span>
-      )}
-      {!online && (
-        <span style={{ color: 'var(--ruido)', display: 'inline-flex', alignItems: 'center', gap: '0.3em' }} title="sem internet — a mesa continua funcionando só nesta tela">
-          <IconeAlerta size={11} />
-          offline
-        </span>
-      )}
-      {pendencias.length > 0 && (
-        <span
-          style={{ color: 'var(--ruido)' }}
-          title={`aguardando reconexão pra reenviar: ${pendencias.map((p) => `${p.modulo}:${p.chave}`).join(', ')}`}
-        >
-          ⏳ {pendencias.length} pendente{pendencias.length > 1 ? 's' : ''}
-        </span>
-      )}
-    </span>
+    <div className="mono status-mesa" aria-label="Estado da mesa">
+      <Detalhe classe={local === 'ok' ? 'status-saudavel' : ''} sinal={local === 'ok'
+        ? '● registrado' : <><IconeAlerta size={14} /> não salvou neste navegador</>}>
+        {local === 'ok' ? <>
+          <p>As alterações são gravadas automaticamente neste navegador.</p>
+          <p className="status-detalhe__recursos">Este sinal confirma a gravação local. O envio para a mesa aparece no indicador de conexão.</p>
+        </> : <>
+          <p>A gravação neste navegador falhou. O armazenamento pode estar cheio ou indisponível.</p>
+          <p>Exporte um backup antes de fechar a página.</p>
+        </>}
+      </Detalhe>
+
+      <Detalhe classe={saudavel ? 'status-saudavel' : textoConexao === 'modo local' ? 'status-neutro' : ''}
+        sinal={<><Icone nome={!online ? 'wifi-off' : sync === 'erro' ? 'wifi-off' : supabase || sync === 'conectado' ? 'wifi' : 'relogio'} size={14} />{textoConexao}</>}>
+        {!online ? <>
+          <p>Este navegador está sem internet. A mesa continua disponível nesta tela.</p>
+          <p>Os recursos voltam a se conectar automaticamente quando a internet retornar.</p>
+        </> : sync === 'erro' ? <>
+          <p>Parte da mesa não está recebendo atualizações. Os dados podem estar desatualizados.</p>
+          <p className="status-detalhe__recursos">Recursos afetados: {recursosComErro.join(', ')}.</p>
+          <p>A reconexão é automática. Se o aviso persistir, exporte um backup e recarregue a página.</p>
+        </> : sync === 'conectado' ? <>
+          <p>A conexão de atualização da mesa está ativa.</p>
+          <p className="status-detalhe__recursos">Este sinal indica conexão; não confirma que todos os jogadores já receberam cada ação.</p>
+        </> : supabase ? <p>Aguardando a conexão de atualização da mesa.</p>
+          : <p>A sincronização entre dispositivos não está configurada. A mesa funciona apenas neste navegador.</p>}
+      </Detalhe>
+
+      {pendencias.length > 0 && <Detalhe sinal={<><Icone nome="relogio" size={14} />
+        {pendencias.length} envio{pendencias.length > 1 ? 's' : ''} pendente{pendencias.length > 1 ? 's' : ''}</>}>
+        <p>Algumas alterações ainda não foram enviadas. O sistema tenta reenviá-las automaticamente ao reconectar.</p>
+        <p className="status-detalhe__recursos">Aguardando envio: {recursosPendentes.join(', ')}.</p>
+      </Detalhe>}
+
+      {erroRuntime && <Detalhe sinal={<><IconeAlerta size={14} /> aviso da mesa</>}>
+        <p>{/sem permissão pra salvar/.test(erroRuntime)
+          ? 'A permissão para salvar foi recusada. Recarregue a página para conferir o vínculo desta sessão.'
+          : 'Uma ação encontrou um erro inesperado. Confira se ela foi concluída; se o aviso voltar, exporte um backup e recarregue a página.'}</p>
+        <button type="button" onClick={(evento) => {
+          evento.currentTarget.closest('.status-mesa')?.querySelector<HTMLElement>('summary')?.focus();
+          limparErroRuntime();
+        }}>dispensar aviso</button>
+      </Detalhe>}
+    </div>
   );
 }

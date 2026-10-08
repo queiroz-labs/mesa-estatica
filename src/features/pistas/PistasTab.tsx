@@ -4,9 +4,10 @@ import type { Pista, StatusPista } from '../../state/types';
 import { IconeCheck, IconeMegafone, IconePrancheta } from '../combate/icones';
 import { revelarPistaAosJogadores } from './revelarPista';
 import './pistas.css';
+import BadgePrivado from '../../components/BadgePrivado';
 
 const COLUNAS: { status: StatusPista; titulo: string; cor: string; vazio: string }[] = [
-  { status: 'nao-descoberta', titulo: 'não descobertas', cor: 'var(--ink-faint)', vazio: 'nenhuma pista plantada ainda.' },
+  { status: 'nao-descoberta', titulo: 'não descobertas', cor: 'var(--ink-dim)', vazio: 'nenhuma pista plantada ainda.' },
   { status: 'descoberta', titulo: 'descobertas', cor: 'var(--real)', vazio: 'nada descoberto ainda.' },
   { status: 'compartilhada', titulo: 'compartilhadas com jogadores', cor: 'var(--rede)', vazio: 'nada revelado à mesa ainda.' },
 ];
@@ -144,7 +145,7 @@ export default function PistasTab() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', gap: '0.6rem' }}>
         <h3 className="label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           Quadro de pistas
-          <span className="badge">privado — só o mestre</span>
+          <BadgePrivado />
         </h3>
         <input
           type="text"

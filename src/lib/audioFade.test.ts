@@ -35,6 +35,42 @@ describe('fadeVolume', () => {
 
   const audioFalso = (volumeInicial: number) => ({ volume: volumeInicial }) as HTMLAudioElement;
 
+  /** O navegador rejeita volumes fora de [0,1]; um objeto simples esconderia o erro real. */
+  const audioComLimites = (volumeInicial: number) => {
+    let volume = volumeInicial;
+    const escritos: number[] = [];
+    const audio = {
+      get volume() { return volume; },
+      set volume(valor: number) {
+        if (valor < 0 || valor > 1 || !Number.isFinite(valor)) {
+          throw new DOMException('volume fora de [0,1]', 'IndexSizeError');
+        }
+        escritos.push(valor);
+        volume = valor;
+      },
+    } as HTMLAudioElement;
+    return { audio, escritos };
+  };
+
+  it.each([[1, 0], [0, 1]])('tolera timestamp inicial anterior ao relógio sem exceder os limites no fade %s → %s', (de, alvo) => {
+    const { audio, escritos } = audioComLimites(de);
+    const aoTerminar = vi.fn();
+    agora = 1000;
+    fadeVolume(audio, alvo, 1000, { current: 0 }, aoTerminar);
+    // Um frame usa o timestamp compartilhado do rAF, não um performance.now() novo.
+    // Se a rampa começar depois desse timestamp, o primeiro progresso seria negativo.
+    expect(() => avancar(-3)).not.toThrow();
+    expect(audio.volume).toBe(de);
+    expect(aoTerminar).not.toHaveBeenCalled();
+    avancar(503);
+    expect(audio.volume).toBe(0.5);
+    avancar(900);
+    expect(audio.volume).toBe(alvo);
+    expect(aoTerminar).toHaveBeenCalledOnce();
+    expect(escritos.every((volume) => volume >= 0 && volume <= 1)).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('conclui a pausa mesmo sem frames e não repete o callback quando os frames voltam', () => {
     const audio = audioFalso(0.8);
     const pausar = vi.fn();

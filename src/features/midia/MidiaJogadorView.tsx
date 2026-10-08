@@ -1,4 +1,5 @@
 import { useStore } from '../../state/store';
+import { IconePause, IconePlay } from '../combate/icones';
 
 /**
  * Aba Mídia do jogador — só a faixa tocando agora. Nomes das próximas faixas (ou já tocadas)
@@ -23,9 +24,10 @@ export default function MidiaJogadorView() {
             border: '1px solid var(--concrete-2)',
             borderRadius: '2px',
             background: 'var(--concrete-1)',
+            display: 'flex', alignItems: 'center', gap: '0.4rem', overflowWrap: 'anywhere',
           }}
         >
-          {midia.tocando ? '▶ ' : '❚❚ '}
+          {midia.tocando ? <IconePlay size={14} /> : <IconePause size={14} />}
           {faixaAtual.nome}
         </div>
       ) : (

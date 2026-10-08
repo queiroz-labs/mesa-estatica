@@ -11,6 +11,7 @@ import type { EntradaIniciativa, Ficha } from '../../state/types';
 import { desmarcarTokenEmArrasto, marcarTokenEmArrasto } from '../../multiplayer/tokensSync';
 import TokenScene from '../../tokens3d/TokenScene';
 import Avatar from '../../components/Avatar';
+import Icone from '../../components/Icone';
 import AoEViewOverlay from './AoEViewOverlay';
 import CombatOverlayJogador from './CombatOverlayJogador';
 import CrachasOverlayJogador from './CrachasOverlayJogador';
@@ -281,6 +282,11 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
               title={partesTitulo.join(' — ')}
             >
               <Avatar nome={t.nome} cor={t.cor} foto={t.foto} silhueta={t.silhueta} tamanho={36} />
+              {(t.morto || t.desacordado) && (
+                <span className="mapa-token__estado" role="img" aria-label={t.morto ? 'morto' : 'desacordado'}>
+                  <Icone nome={t.morto ? 'caveira' : 'lua'} size={26} />
+                </span>
+              )}
               {condicoesExtras.length > 0 && <span className="mapa-token__condicoes">{badgeCondicoes(condicoesExtras)}</span>}
             </div>
           );

@@ -50,7 +50,7 @@ export default function ArmasCombate({ ficha, souMestre }: Props) {
       {souMestre && (
         <label
           title="dano rolado aqui nasce privado por padrão — desmarque pra rolar público"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: 10, cursor: 'pointer', color: 'var(--ink-faint)', marginLeft: '0.4rem' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: 12, cursor: 'pointer', color: 'var(--ink-dim)', marginLeft: '0.4rem' }}
         >
           <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} />
           privado
@@ -86,7 +86,7 @@ export default function ArmasCombate({ ficha, souMestre }: Props) {
             </button>
             <label
               title="margem 10+ no ataque, ou 20 natural — dano máximo"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.15rem', fontSize: 10, cursor: 'pointer', color: 'var(--ink-faint)' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.15rem', fontSize: 12, cursor: 'pointer', color: 'var(--ink-dim)' }}
             >
               <input
                 type="checkbox"

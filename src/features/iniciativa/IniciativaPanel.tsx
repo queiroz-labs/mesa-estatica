@@ -1,4 +1,5 @@
 import { useCallback, useState, type ReactNode } from 'react';
+import Icone from '../../components/Icone';
 import { estaMorto } from '../../rules/combate';
 import { CONDICOES_COMBATE, REGRAS_GERAIS_COMBATE } from '../../rules/data/condicoesCombate';
 import { TABELA_SURTO } from '../../rules/data/surto';
@@ -209,7 +210,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                   onDragEnd={() => { setDragIndex(null); setDropIndex(null); }}
                   onClick={() => toggleExpandido(e.id)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: podeArrastar ? 'grab' : 'pointer', fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap', cursor: podeArrastar ? 'grab' : 'pointer', fontSize: 13,
                     padding: '0.1rem 0',
                   }}
                 >
@@ -223,33 +224,33 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                   />
                   <button
                     type="button"
-                    className="icone-botao"
+                    className="controle-icone"
                     onClick={(ev) => { ev.stopPropagation(); removerDaIniciativa(e.id); }}
                     title="remover"
-                    style={{ color: 'var(--ruido)', padding: '0.1em 0.3em', fontSize: 11, lineHeight: 1, flexShrink: 0 }}
+                    aria-label={`remover ${e.nome} da iniciativa`}
                   >
-                    ×
+                    <Icone nome="lixeira" />
                   </button>
                   <button
                     type="button"
-                    className="icone-botao"
+                    className="controle-icone"
                     onClick={(ev) => { ev.stopPropagation(); rerolarIniciativaDe(e.participanteId); }}
                     title="rerrolar iniciativa (d20+Agilidade)"
-                    style={{ padding: '0.1em 0.3em', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}
+                    aria-label={`rerrolar iniciativa de ${e.nome}`}
                   >
                     <IconeDado />
                   </button>
                   <button
                     type="button"
-                    className="icone-botao"
+                    className="controle-icone"
                     disabled={!podeAdiar}
                     onClick={podeAdiar ? (ev) => {
                       ev.stopPropagation();
                       adiarIniciativa(e.id);
                     } : undefined}
                     title={podeAdiar ? 'adiar — vai pro fim da ordem desta rodada' : undefined}
+                    aria-label={`adiar turno de ${e.nome}`}
                     style={{
-                      padding: '0.1em 0.3em', display: 'inline-flex', alignItems: 'center', flexShrink: 0,
                       // `undefined` (não 'visible') quando podeAdiar: um valor explícito aqui
                       // teria especificidade de inline style e VENCERIA o `visibility: hidden`
                       // da aba inteira quando o mestre troca de aba com o combate aberto (era
@@ -261,7 +262,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                   >
                     <IconeAdiar />
                   </button>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)', minWidth: 16, flexShrink: 0 }} title="posição na ordem de turno">
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)', minWidth: 16, flexShrink: 0 }} title="posição na ordem de turno">
                     {i + 1}
                   </span>
                   <span className="mono" style={{ color: 'var(--rede)', fontSize: 12, minWidth: 12, flexShrink: 0 }}>
@@ -270,7 +271,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                   <span
                     className="mono"
                     style={{
-                      flex: 1, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 44,
+                      flex: 1, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 96,
                       color: naVez ? 'var(--rede)' : undefined,
                     }}
                     title={e.nome}
@@ -293,7 +294,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                                 : 'desacordado — condição marcada pelo mestre, independente do PV.'))
                             : 'PV em 25% ou menos do máximo'
                       }
-                      style={{ borderColor: 'var(--ruido)', color: 'var(--ruido)', fontSize: 10, padding: '0.1em 0.35em', flexShrink: 0 }}
+                      style={{ borderColor: 'var(--ruido)', color: 'var(--ruido)', fontSize: 11, padding: '0.1em 0.35em', flexShrink: 0 }}
                     >
                       {morto ? 'morto' : foraDeCombate ? (ativas.includes('estavel') ? 'estável' : 'fora de combate') : 'crítico'}
                     </span>
@@ -307,7 +308,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                   )}
                   <span
                     className="mono"
-                    style={{ fontSize: 11, color: 'var(--ink-faint)', flexShrink: 0, minWidth: 26, textAlign: 'right' }}
+                    style={{ fontSize: 12, color: 'var(--ink-dim)', flexShrink: 0, minWidth: 26, textAlign: 'right' }}
                     title={
                       e.d20 !== undefined && e.agilidade !== undefined
                         ? `iniciativa ${e.valor}: d20 ${e.d20} + agilidade aplicada ${e.agilidade}`
@@ -321,7 +322,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                       <div style={{ width: 36 }}>
                         <BarraSegmentada atual={pv.atual} maximo={pv.maximo} variante="pv" corPreenchimento={corPv(pv.atual, pv.maximo)} compacta />
                       </div>
-                      <span className="mono" style={{ fontSize: 11, minWidth: 32, textAlign: 'right' }}>
+                      <span className="mono" style={{ fontSize: 12, minWidth: 32, textAlign: 'right' }}>
                         {pv.atual}/{pv.maximo}
                       </span>
                     </div>
@@ -331,7 +332,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                       <IconeEscudo size={12} />{defesa.valor}
                     </span>
                   )}
-                  <span style={{ color: 'var(--ink-faint)', flexShrink: 0, display: 'inline-flex' }}>
+                  <span style={{ color: 'var(--ink-dim)', flexShrink: 0, display: 'inline-flex' }}>
                     <IconeChevron aberto={exp} />
                   </span>
                 </div>
@@ -368,6 +369,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                             <div key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.15rem' }}>
                               <button
                                 className={`combate-chip${ligada ? ' combate-chip--ativa' : ''}`}
+                                aria-pressed={ligada}
                                 title={rodadasRestantes !== undefined ? `${c.efeito} (${rodadasRestantes} rodada${rodadasRestantes === 1 ? '' : 's'} restante${rodadasRestantes === 1 ? '' : 's'})` : c.efeito}
                                 onClick={() => alternarCondicaoCombate(e.participanteId, c.id)}
                               >
@@ -378,19 +380,19 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.05rem' }}>
                                   {rodadasRestantes !== undefined && (
                                     <button
-                                      className="icone-botao"
+                                      className="controle-icone"
                                       title="reduzir duração — 0 volta a manual/persistente (sem prazo)"
+                                      aria-label={`reduzir duração de ${c.nome} em ${e.nome}`}
                                       onClick={() => definirDuracaoCondicao(e.participanteId, c.id, rodadasRestantes - 1)}
-                                      style={{ fontSize: 11, padding: '0.05em 0.3em' }}
                                     >
                                       −
                                     </button>
                                   )}
                                   <button
-                                    className="icone-botao"
+                                    className="controle-icone"
                                     title="duração em rodadas — desliga sozinha quando chegar a 0 no fim do turno dela (mesmo mecanismo de Aguardando)"
+                                    aria-label={`aumentar duração de ${c.nome} em ${e.nome}`}
                                     onClick={() => definirDuracaoCondicao(e.participanteId, c.id, (rodadasRestantes ?? 0) + 1)}
-                                    style={{ fontSize: 11, padding: '0.05em 0.3em' }}
                                   >
                                     +
                                   </button>
@@ -406,14 +408,15 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                         <div>
                           <span className="combate-rotulo">pv</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', flexWrap: 'wrap' }}>
-                            <button className="icone-botao" onClick={() => pv.aplicar(-1)} title="−1 PV" style={{ fontSize: 11, padding: '0.1em 0.35em' }}>−1</button>
+                            <button className="controle-icone" onClick={() => pv.aplicar(-1)} title="−1 PV" aria-label={`reduzir 1 PV de ${e.nome}`}>−1</button>
                             <span className="mono" style={{ fontSize: 12, minWidth: 32, textAlign: 'center' }}>{pv.atual}</span>
-                            <button className="icone-botao" onClick={() => pv.aplicar(1)} title="+1 (ajuste — não é cura, regras.md)" style={{ fontSize: 11, padding: '0.1em 0.35em' }}>+1</button>
+                            <button className="controle-icone" onClick={() => pv.aplicar(1)} title="+1 (ajuste — não é cura, regras.md)" aria-label={`ajustar mais 1 PV de ${e.nome}`}>+1</button>
                             <input
                               type="number"
                               placeholder="dano"
                               title="dano livre — Enter aplica"
-                              style={{ width: 44, fontSize: 11, padding: '0.1em 0.25em' }}
+                              aria-label={`dano em ${e.nome} — Enter aplica`}
+                              style={{ width: 58, minHeight: 'var(--controle-altura-compacta)', padding: '0.1em 0.25em' }}
                               onKeyDown={(ev) => {
                                 if (ev.key !== 'Enter') return;
                                 const alvo = ev.target as HTMLInputElement;
@@ -430,9 +433,9 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                           <span className="combate-rotulo">defesa</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                             <span style={{ color: 'var(--real)', display: 'inline-flex' }}><IconeEscudo size={12} /></span>
-                            <button className="icone-botao" onClick={() => defesa.ajustar(-1)} style={{ fontSize: 11, padding: '0.1em 0.35em' }}>−</button>
+                            <button className="controle-icone" onClick={() => defesa.ajustar(-1)} title="reduzir defesa" aria-label={`reduzir defesa de ${e.nome}`}>−</button>
                             <span className="mono" style={{ fontSize: 12, minWidth: 20, textAlign: 'center' }}>{defesa.valor}</span>
-                            <button className="icone-botao" onClick={() => defesa.ajustar(1)} style={{ fontSize: 11, padding: '0.1em 0.35em' }}>+</button>
+                            <button className="controle-icone" onClick={() => defesa.ajustar(1)} title="aumentar defesa" aria-label={`aumentar defesa de ${e.nome}`}>+</button>
                           </div>
                         </div>
                       )}

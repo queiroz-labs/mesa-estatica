@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Icone from '../../components/Icone';
 import InputNumeroDraft from '../../components/InputNumeroDraft';
 import { useStore } from '../../state/store';
 import { useMapaAtivo } from './useMapaAtivo';
@@ -24,13 +25,13 @@ export default function GradeOverlay() {
   return (
     <div style={{ position: 'fixed', left: '1.25rem', bottom: '1.25rem', zIndex: 50 }}>
       {aberto && (
-        <div className="secao" style={{ width: 260, marginBottom: '0.6rem', boxShadow: '0 4px 24px rgba(0,0,0,0.5)' }}>
+        <div className="secao" style={{ width: 'min(260px, calc(100vw - 2.5rem))', marginBottom: '0.6rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h3 className="label" style={{ margin: 0 }}>
               grid do mapa
             </h3>
-            <button className="icone-botao" onClick={() => setAberto(false)} title="fechar">
-              ×
+            <button className="controle-icone" onClick={() => setAberto(false)} title="fechar" aria-label="fechar grade do mapa">
+              <Icone nome="fechar" />
             </button>
           </div>
 
@@ -127,15 +128,14 @@ export default function GradeOverlay() {
         </div>
       )}
       <button
+        className="mapa-ferramenta"
         onClick={() => setAberto(!aberto)}
         title="grid do mapa"
-        style={
-          grade.ativa
-            ? { borderRadius: '50%', width: 48, height: 48, padding: 0, borderColor: 'var(--rede-dim)', color: 'var(--rede)' }
-            : { borderRadius: '50%', width: 48, height: 48, padding: 0 }
-        }
+        aria-label="grade do mapa"
+        aria-expanded={aberto}
+        data-ativo={grade.ativa}
       >
-        #
+        <Icone nome="grade" size={20} />
       </button>
     </div>
   );

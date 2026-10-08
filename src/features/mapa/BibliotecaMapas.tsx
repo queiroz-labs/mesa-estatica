@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Icone from '../../components/Icone';
 import { comprimirImagem } from '../../lib/comprimirImagem';
 import { supabase } from '../../lib/supabaseClient';
 import { marcarRemocaoExplicita } from '../../multiplayer/remocaoExplicita';
@@ -70,7 +71,7 @@ export default function BibliotecaMapas() {
 
   return (
     <div style={{ position: 'relative' }}>
-      <button className="mapa-upload-botao" onClick={() => setAberto((a) => !a)} title="biblioteca de mapas">
+      <button className="mapa-upload-botao" onClick={() => setAberto((a) => !a)} title="biblioteca de mapas" aria-expanded={aberto}>
         {ativo ? ativo.nome || 'mapa sem nome' : 'biblioteca de mapas'}
       </button>
 
@@ -82,21 +83,20 @@ export default function BibliotecaMapas() {
             top: 'calc(100% + 0.4rem)',
             left: 0,
             zIndex: 40,
-            width: 320,
+            width: 'min(320px, calc(100vw - 3rem))',
             maxHeight: '60vh',
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 className="label" style={{ margin: 0 }}>
               biblioteca de mapas
             </h3>
-            <button className="icone-botao" onClick={() => setAberto(false)} title="fechar">
-              ×
+            <button className="controle-icone" onClick={() => setAberto(false)} title="fechar" aria-label="fechar biblioteca de mapas">
+              <Icone nome="fechar" />
             </button>
           </div>
 
@@ -171,9 +171,9 @@ function ItemBiblioteca({
           usar
         </button>
       )}
-      <span className="icone-botao" role="button" tabIndex={0} onClick={onExcluir} style={{ color: 'var(--ruido)' }} title="excluir">
-        ×
-      </span>
+      <button className="controle-icone" onClick={onExcluir} title="excluir" aria-label={`excluir mapa ${mapa.nome || 'sem nome'}`}>
+        <Icone nome="lixeira" />
+      </button>
     </div>
   );
 }

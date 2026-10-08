@@ -5,6 +5,8 @@ import type { ColorsetId } from '../../dice/colorsets';
 import type { TipoRolagemForcada } from '../../dice/registroForcados';
 import ResultadoLivre from './ResultadoLivre';
 import { criarResultadoLivreDetalhado, formulaLivreComAjuste, type ResultadoLivreDetalhado } from './resultadoLivreApresentacao';
+import Icone from '../../components/Icone';
+import './dados.css';
 
 const TODAS_AS_FACES = [4, 6, 8, 10, 12, 20, 100];
 
@@ -104,15 +106,16 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
       </div>
 
       {termos.map((t) => (
-        <div key={t.id} className="linha-repetivel" style={{ gridTemplateColumns: '80px 120px 1fr auto' }}>
+        <div key={t.id} className="linha-repetivel dados-termo">
           <input
             type="number"
             min={1}
             max={20}
+            aria-label="quantidade de dados"
             value={t.quantidade}
             onChange={(e) => atualizarTermo(t.id, { quantidade: Math.max(1, Number(e.target.value) || 1) })}
           />
-          <select value={t.faces} onChange={(e) => atualizarTermo(t.id, { faces: Number(e.target.value) })}>
+          <select aria-label="faces do dado" value={t.faces} onChange={(e) => atualizarTermo(t.id, { faces: Number(e.target.value) })}>
             {TODAS_AS_FACES.map((f) => (
               <option key={f} value={f}>
                 d{f}
@@ -122,13 +125,13 @@ export default function RolagemLivreJogador({ fichaId, ready, rolar }: RolagemLi
           <span className="vazio" style={{ alignSelf: 'center' }}>
             {t.quantidade}d{t.faces}
           </span>
-          <button className="icone-botao perigo" onClick={() => removerTermo(t.id)} disabled={termos.length <= 1}>
-            remover
+          <button className="icone-botao" title={`remover ${t.quantidade}d${t.faces}`} aria-label={`remover ${t.quantidade}d${t.faces}`} onClick={() => removerTermo(t.id)} disabled={termos.length <= 1}>
+            <Icone nome="lixeira" />
           </button>
         </div>
       ))}
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
         <button className="acento" onClick={adicionarTermo}>
           + combinar outro dado
         </button>

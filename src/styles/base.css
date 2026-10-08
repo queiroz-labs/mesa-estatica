@@ -38,8 +38,11 @@ button {
   background: var(--concrete-1);
   color: var(--ink);
   border: 1px solid var(--concrete-2);
-  border-radius: 2px;
-  padding: 0.5em 1em;
+  border-radius: var(--controle-raio);
+  min-height: var(--controle-altura);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0.35em 0.75em;
   cursor: pointer;
 }
 
@@ -49,7 +52,8 @@ button:hover {
 }
 
 button:focus-visible {
-  outline: none;
+  outline: 2px solid var(--rede);
+  outline-offset: 2px;
   border-color: var(--rede-dim);
   box-shadow: 0 0 0 1px var(--rede-glow);
 }
@@ -120,13 +124,54 @@ label {
 }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-size: 11px;
+  font-size: 12px;
   padding: 0.2em 0.5em;
   border-radius: 2px;
-  border: 1px solid var(--ruido-dim);
+  border: 1px solid var(--concrete-2);
+  color: var(--ink-dim);
+}
+
+.badge--perigo {
+  border-color: var(--ruido-dim);
   color: var(--ruido);
+}
+
+.badge--publico {
+  border-color: var(--rede-dim);
+  color: var(--rede);
+}
+
+.controle-compacto,
+.controle-icone {
+  min-height: var(--controle-altura-compacta);
+  font-size: 12px;
+}
+
+.controle-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--controle-altura-compacta);
+  min-width: var(--controle-altura-compacta);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --controle-altura: 44px;
+    --controle-altura-compacta: 44px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

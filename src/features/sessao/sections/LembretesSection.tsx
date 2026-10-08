@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../../state/store';
+import BadgePrivado from '../../../components/BadgePrivado';
 
 /** §5 — Lembretes do mestre [Privado]: notas soltas de ritmo/continuidade. */
 export default function LembretesSection() {
@@ -18,7 +19,7 @@ export default function LembretesSection() {
   return (
     <section className="secao">
       <h3>
-        lembretes do mestre <span className="badge">privado</span>
+        lembretes do mestre <BadgePrivado />
       </h3>
 
       {lembretes.length === 0 && <p className="vazio">nenhum lembrete anotado.</p>}

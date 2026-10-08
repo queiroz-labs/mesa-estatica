@@ -41,7 +41,7 @@ export default function ArmasCombateNpc({ npc }: Props) {
       <span className="combate-rotulo">armas</span>
       <label
         title="ataque e dano rolados aqui nascem privados por padrão — desmarque pra rolar público"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: 10, cursor: 'pointer', color: 'var(--ink-faint)', marginLeft: '0.4rem' }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: 12, cursor: 'pointer', color: 'var(--ink-dim)', marginLeft: '0.4rem' }}
       >
         <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} />
         privado

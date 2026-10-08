@@ -23,7 +23,7 @@ export default function CrachasLista({ personagens, euId }: Props) {
       {personagens.map((p) => (
         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <Avatar nome={p.nome} cor={p.cor} foto={p.foto} bordaCor={p.cor} tamanho={48} ampliavel />
-          <span className="mono" style={{ fontSize: 13 }}>
+          <span className="mono" style={{ fontSize: 13, minWidth: 0, overflowWrap: 'anywhere' }}>
             {p.nome || 'sem nome'}
             {p.id === euId && <span className="vazio"> (você)</span>}
           </span>

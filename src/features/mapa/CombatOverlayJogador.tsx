@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import CombateJogadorView from '../iniciativa/CombateJogadorView';
 import type { NpcPublico } from '../../multiplayer/npcsSync';
 import { useStore } from '../../state/store';
@@ -57,10 +58,10 @@ export default function CombatOverlayJogador({ iniciativa, minhaFicha, corMap, n
     const rect = area.getBoundingClientRect();
     const dx = ev.clientX - arrastando.origemX;
     const dy = ev.clientY - arrastando.origemY;
-    const alturaPainel = painelRef.current?.offsetHeight ?? 200;
+    const alturaPainel = painelRef.current?.parentElement?.offsetHeight ?? 200;
     const larguraPainel = painelRef.current?.offsetWidth ?? 380;
     const maxX = rect.width - larguraPainel - 8;
-    const maxY = rect.height - Math.min(alturaPainel + 16, rect.height - 16);
+    const maxY = rect.height - Math.min(alturaPainel + 8, rect.height - 8);
     setPanelPos({
       x: Math.max(0, Math.min(arrastando.painelX + dx, maxX)),
       y: Math.max(8, Math.min(arrastando.painelY + dy, maxY)),
@@ -91,14 +92,14 @@ export default function CombatOverlayJogador({ iniciativa, minhaFicha, corMap, n
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
-        ...(aberto ? { width: 'min(480px, calc(100vw - 16px))' } : {}),
+        ...(aberto ? { width: 'min(480px, calc(100% - 16px))', maxHeight: 'calc(100% - 16px)' } : {}),
       }}
     >
       {aberto && (
         <div
           ref={painelRef}
           className="secao"
-          style={{ width: '100%', maxHeight: '70vh', overflowY: 'auto', marginBottom: '0.6rem', boxShadow: '0 4px 24px rgba(0,0,0,0.5)', padding: '0.5rem 0.75rem' }}
+          style={{ width: '100%', maxHeight: '70vh', minHeight: 0, flexShrink: 1, overflowY: 'auto', marginBottom: '0.6rem', padding: '0.5rem 0.75rem' }}
         >
           <div
             onPointerDown={iniciarArrasto}
@@ -107,21 +108,20 @@ export default function CombatOverlayJogador({ iniciativa, minhaFicha, corMap, n
             <h3 className="label" style={{ margin: 0, fontSize: 12 }}>
               combate{modoCombate ? ` · rodada ${rodada}` : ''}
             </h3>
-            <button className="icone-botao" onClick={() => { setPanelPos({ x: 8, y: 8 }); setAberto(false); }} title="fechar" onPointerDown={(ev) => ev.stopPropagation()}>
-              ×
+            <button className="controle-icone" onClick={() => { setPanelPos({ x: 8, y: 8 }); setAberto(false); }} title="fechar" aria-label="fechar painel de combate" onPointerDown={(ev) => ev.stopPropagation()}>
+              <Icone nome="fechar" />
             </button>
           </div>
           <CombateJogadorView iniciativa={iniciativa} minhaFicha={minhaFicha} corMap={corMap} npcs={npcs} semMoldura />
         </div>
       )}
       <button
+        className="mapa-ferramenta"
         onClick={toggleAberto}
         title="combate"
-        style={
-          modoCombate
-            ? { borderRadius: '50%', width: 48, height: 48, padding: 0, borderColor: 'var(--rede-dim)', color: 'var(--rede)' }
-            : { borderRadius: '50%', width: 48, height: 48, padding: 0 }
-        }
+        aria-label="painel de combate"
+        aria-expanded={aberto}
+        data-ativo={modoCombate}
       >
         ATK
       </button>

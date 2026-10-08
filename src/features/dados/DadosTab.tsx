@@ -9,6 +9,7 @@ import RoladorSurto from './RoladorSurto';
 import RoladorTrauma from './RoladorTrauma';
 import RolagemLivre from './RolagemLivre';
 import RoladorTabelas from './RoladorTabelas';
+import './dados.css';
 
 export default function DadosTab({ active = true }: { active?: boolean }) {
   const { ready, rolando, erro, falhaRolagem, modo2D, rolar, reproduzir } = useDiceBox('dice-bandeja', active, 100, undefined, consumirForcados);
@@ -25,19 +26,11 @@ export default function DadosTab({ active = true }: { active?: boolean }) {
   useReproduzirRolagemAoVivo(reproduzir, ready);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+    <div className="dados-grade">
       {!modo2D && (
         <div
           id="dice-bandeja"
-          style={{
-            gridColumn: '1 / -1',
-            width: '100%',
-            height: '280px',
-            background: 'var(--concrete-0)',
-            border: '1px solid var(--concrete-2)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
+          className="dados-bandeja"
         />
       )}
       {modo2D && (
@@ -59,7 +52,7 @@ export default function DadosTab({ active = true }: { active?: boolean }) {
         <RolagemLivre ready={podeRolar} rolar={rolar} />
         <RoladorTabelas ready={podeRolar} rolar={rolar} />
       </Fragment>
-      <div style={{ gridColumn: 'span 2' }}>
+      <div style={{ gridColumn: '1 / -1' }}>
         <FeedRolagens />
       </div>
     </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { IconeStop } from '../combate/icones';
+import Icone from '../../components/Icone';
+import ControleVolume from './ControleVolume';
 import { marcarRemocaoExplicita } from '../../multiplayer/remocaoExplicita';
 import { deletarR2, extrairMensagemErro, isUrlSupabaseStorage, uploadR2 } from '../../multiplayer/uploadR2';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
@@ -163,21 +165,9 @@ export default function SoundpadGrid() {
         <h3 className="label" style={{ margin: 0 }}>
           soundpad
         </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="vazio" style={{ fontSize: 12 }} title="volume dos efeitos — independente do volume da música, vale pra todo mundo">
-            volume efeitos (todos)
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={volume}
-            onChange={(e) => definirVolumeSoundpad(Number(e.target.value))}
-            style={{ width: '260px' }}
-          />
-        </div>
       </div>
+      <ControleVolume id="soundpad-volume" nome="efeitos (todos)" volume={volume} onChange={definirVolumeSoundpad}
+        title="volume dos efeitos — independente da música e da ambiência, vale para todos" />
 
       {!supabase ? (
         <p className="vazio">
@@ -185,7 +175,7 @@ export default function SoundpadGrid() {
         </p>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem' }}>
+          <div className="soundpad-grade">
             {SLOTS.map((slot) => {
               const som = sons.find((x) => x.slot === slot) ?? null;
               const enviando = enviandoSlot === slot;
@@ -232,7 +222,7 @@ export default function SoundpadGrid() {
                           onClick={() => escolherArquivo(slot)}
                           disabled={enviando}
                           title="substituir o som deste botão"
-                          style={{ fontSize: 10, flex: 1 }}
+                          style={{ flex: 1 }}
                         >
                           {enviando ? 'enviando…' : 'trocar'}
                         </button>
@@ -241,12 +231,12 @@ export default function SoundpadGrid() {
                           onClick={() => abrirBusca(slot)}
                           disabled={enviando}
                           title="buscar efeito no Freesound"
-                          style={{ fontSize: 10, flex: 1 }}
+                          style={{ flex: 1 }}
                         >
                           buscar
                         </button>
-                        <button className="icone-botao perigo" onClick={() => limpar(som)} title="remover" style={{ fontSize: 10 }}>
-                          ×
+                        <button className="icone-botao" onClick={() => limpar(som)} title={`excluir efeito ${som.nome}`} aria-label={`excluir efeito ${som.nome}`}>
+                          <Icone nome="lixeira" />
                         </button>
                       </div>
                     </>
@@ -265,7 +255,6 @@ export default function SoundpadGrid() {
                         onClick={() => abrirBusca(slot)}
                         disabled={enviando}
                         title="buscar efeito no Freesound"
-                        style={{ fontSize: 10 }}
                       >
                         buscar
                       </button>
@@ -307,7 +296,6 @@ export default function SoundpadGrid() {
               width: 720,
               maxWidth: '90vw',
               maxHeight: '80vh',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.6rem',
@@ -323,7 +311,8 @@ export default function SoundpadGrid() {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !buscando && buscar()}
                 placeholder='ex.: "estática", "passos concreto", "rádio distorcido"'
-                style={{ flex: 1 }}
+                aria-label="buscar som no Freesound"
+                style={{ flex: 1, minWidth: 0 }}
                 autoFocus
               />
               <button className="acento" onClick={buscar} disabled={buscando || !query.trim()}>
@@ -340,6 +329,7 @@ export default function SoundpadGrid() {
                   key={r.id}
                   style={{
                     display: 'flex',
+                    flexWrap: 'wrap',
                     alignItems: 'center',
                     gap: '0.5rem',
                     padding: '0.4rem 0.5rem',
@@ -347,13 +337,13 @@ export default function SoundpadGrid() {
                     borderRadius: '2px',
                   }}
                 >
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ flex: '1 1 120px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {r.nome}
                   </span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--ink-dim)' }}>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)' }}>
                     {formatarDuracao(r.duracao)}
                   </span>
-                  <audio controls src={r.previewUrl} style={{ height: 28, maxWidth: 220 }} />
+                  <audio controls aria-label={`ouvir prévia de ${r.nome}`} src={r.previewUrl} style={{ height: 32, width: 220, maxWidth: '100%' }} />
                   <button
                     className="acento"
                     onClick={() => usar(r)}

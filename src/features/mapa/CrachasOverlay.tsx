@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import { useStore } from '../../state/store';
 import CrachasLista from './CrachasLista';
 
 /** Janela flutuante "crachás" — nome + foto/cor de todos os PCs, pra qualquer jogador
  *  identificar rapidamente quem é quem na mesa. Mesma mecânica de CombatOverlay.tsx
  *  (arrastar/abrir/fechar dentro de `.mapa-area`), ancorada no canto OPOSTO ao botão "ATK"
- *  até o primeiro arrasto (evita os dois botões redondos colidindo). */
+ *  até o primeiro arrasto (evita os dois controles colidindo). */
 export default function CrachasOverlay() {
   const fichas = useStore((s) => s.fichas);
 
@@ -36,10 +37,10 @@ export default function CrachasOverlay() {
     const rect = area.getBoundingClientRect();
     const dx = ev.clientX - arrastando.origemX;
     const dy = ev.clientY - arrastando.origemY;
-    const alturaPainel = painelRef.current?.offsetHeight ?? 200;
+    const alturaPainel = painelRef.current?.parentElement?.offsetHeight ?? 200;
     const larguraPainel = painelRef.current?.offsetWidth ?? 260;
     const maxX = rect.width - larguraPainel - 8;
-    const maxY = rect.height - Math.min(alturaPainel + 16, rect.height - 16);
+    const maxY = rect.height - Math.min(alturaPainel + 8, rect.height - 8);
     setPanelPos({
       x: Math.max(0, Math.min(arrastando.painelX + dx, maxX)),
       y: Math.max(8, Math.min(arrastando.painelY + dy, maxY)),
@@ -70,6 +71,7 @@ export default function CrachasOverlay() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
+        ...(aberto ? { width: 'min(260px, calc(100% - 16px))', maxHeight: 'calc(100% - 16px)' } : {}),
         ...(panelPos ? { left: panelPos.x, top: panelPos.y } : { right: 8, top: 8 }),
       }}
     >
@@ -77,22 +79,22 @@ export default function CrachasOverlay() {
         <div
           ref={painelRef}
           className="secao"
-          style={{ width: 'min(260px, calc(100% - 8px))', maxHeight: '70vh', overflowY: 'auto', marginBottom: '0.6rem', boxShadow: '0 4px 24px rgba(0,0,0,0.5)', padding: '0.75rem 1rem' }}
+          style={{ width: '100%', maxHeight: '70vh', minHeight: 0, flexShrink: 1, overflowY: 'auto', marginBottom: '0.6rem', padding: '0.75rem 1rem' }}
         >
           <div
             onPointerDown={iniciarArrasto}
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', cursor: arrastando ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none' }}
           >
             <h3 className="label" style={{ margin: 0, fontSize: 12 }}>crachás</h3>
-            <button className="icone-botao" onClick={toggleAberto} title="fechar" onPointerDown={(ev) => ev.stopPropagation()}>
-              ×
+            <button className="controle-icone" onClick={toggleAberto} title="fechar" aria-label="fechar crachás" onPointerDown={(ev) => ev.stopPropagation()}>
+              <Icone nome="fechar" />
             </button>
           </div>
           <CrachasLista personagens={personagens} />
         </div>
       )}
-      <button onClick={toggleAberto} title="crachás" style={{ borderRadius: '50%', width: 48, height: 48, padding: 0 }}>
-        ID
+      <button className="mapa-ferramenta" onClick={toggleAberto} title="crachás" aria-label="crachás dos personagens" aria-expanded={aberto}>
+        <Icone nome="cracha" size={20} />
       </button>
     </div>
   );

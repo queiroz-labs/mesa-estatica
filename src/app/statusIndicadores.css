@@ -1,0 +1,91 @@
+.status-mesa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.8rem;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status-detalhe {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--ink);
+}
+
+.status-detalhe > summary,
+.status-vinculo,
+.status-jogador {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: var(--controle-altura, 32px);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status-detalhe > summary {
+  list-style: none;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 0.2rem;
+}
+
+.status-detalhe > summary::-webkit-details-marker { display: none; }
+.status-detalhe > summary:focus-visible { outline: 1px solid var(--rede); outline-offset: 3px; }
+.status-detalhe > summary:hover { color: var(--rede); }
+.status-saudavel > summary { color: var(--rede); }
+.status-neutro > summary { color: var(--ink-dim); }
+
+.status-detalhe__conteudo {
+  position: absolute;
+  z-index: 65;
+  inset-inline-start: 0;
+  top: calc(100% + 0.35rem);
+  width: min(320px, calc(100vw - 3rem));
+  max-width: calc(100vw - 3rem);
+  padding: 0.65rem 0.8rem;
+  background: var(--concrete-0);
+  border: 1px solid var(--concrete-2);
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.status-detalhe__conteudo p { margin: 0; }
+.status-detalhe__conteudo p + p { margin-top: 0.5rem; }
+.status-detalhe__conteudo button { margin-top: 0.65rem; }
+.status-detalhe__recursos { color: var(--ink-dim); }
+
+button.status-vinculo {
+  font-family: var(--font-mono);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0 0.25rem;
+}
+
+button.status-vinculo[data-vinculo="vinculado"] { color: var(--rede); }
+button.status-vinculo:hover { border-color: var(--concrete-2); }
+
+.status-jogador { flex-wrap: wrap; }
+.status-jogador__contexto { color: var(--ink-dim); }
+
+@media (pointer: coarse) {
+  .status-detalhe > summary,
+  button.status-vinculo { min-height: 44px; }
+}
+
+@media (max-width: 720px) {
+  .status-detalhe__conteudo {
+    position: static;
+    margin-top: 0.35rem;
+    width: 100%;
+  }
+}

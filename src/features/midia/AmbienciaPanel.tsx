@@ -4,6 +4,8 @@ import { deletarR2, isUrlSupabaseStorage, uploadR2 } from '../../multiplayer/upl
 import { useAmbienciaUiStore } from '../../state/ambienciaUiStore';
 import { useStore } from '../../state/store';
 import type { FaixaMidia } from '../../state/types';
+import ControleVolume from './ControleVolume';
+import Icone from '../../components/Icone';
 
 export default function AmbienciaPanel() {
   const ambiencia = useStore((s) => s.ambiencia);
@@ -71,18 +73,15 @@ export default function AmbienciaPanel() {
     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
       <button className="acento" onClick={alternar} disabled={!ambiencia.faixas.length}>{ambiencia.tocando ? 'pausar ambiência' : 'tocar ambiência'}</button>
       <button disabled={!faixa} onClick={() => useStore.getState().atualizarEstadoAmbiencia({ tocando: false, posicaoSegundos: 0 })}>parar ambiência</button>
-      <span className="mono" style={{ fontSize: 11, color: 'var(--ink-dim)' }}>loop contínuo</span>
+      <span className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)' }}>loop contínuo</span>
     </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-      <label className="vazio" htmlFor="ambiencia-volume" style={{ fontSize: 12 }}>volume ambiência (todos)</label>
-      <input id="ambiencia-volume" type="range" min={0} max={1} step={0.05} value={ambiencia.volume}
-        onChange={(e) => useStore.getState().definirVolumeAmbiencia(Number(e.target.value))} style={{ width: 260, maxWidth: '100%' }} />
-      <span className="mono" style={{ fontSize: 11 }}>{Math.round(ambiencia.volume * 100)}%</span>
-    </div>
+    <ControleVolume id="ambiencia-volume" nome="ambiência (todos)" volume={ambiencia.volume}
+      onChange={(volume) => useStore.getState().definirVolumeAmbiencia(volume)}
+      title="volume da ambiência — independente da música, vale para todos" />
     {!ambiencia.faixas.length && <p className="vazio" style={{ margin: 0 }}>nenhuma ambiência ainda — envie um áudio acima.</p>}
     {ambiencia.faixas.map((f) => <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <button onClick={() => selecionar(f.id)} aria-pressed={f.id === ambiencia.faixaAtualId} style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</button>
-      <button className="icone-botao perigo" title={`excluir ambiência ${f.nome}`} onClick={() => void excluir(f)}>×</button>
+      <button onClick={() => selecionar(f.id)} aria-pressed={f.id === ambiencia.faixaAtualId} style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</button>
+      <button className="icone-botao" title={`excluir ambiência ${f.nome}`} aria-label={`excluir ambiência ${f.nome}`} onClick={() => void excluir(f)}><Icone nome="lixeira" /></button>
     </div>)}
     {erro && <span role="alert" style={{ color: 'var(--ruido)', fontSize: 12 }}>{erro}</span>}
   </section>;

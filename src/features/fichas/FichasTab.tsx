@@ -4,6 +4,7 @@ import FichaEditor from './FichaEditor';
 import ImportarPersonagemBotao from './ImportarPersonagemBotao';
 import LinkJogadorBotao from './LinkJogadorBotao';
 import './ficha.css';
+import Icone from '../../components/Icone';
 
 export default function FichasTab() {
   const fichas = useStore((s) => s.fichas);
@@ -30,30 +31,32 @@ export default function FichasTab() {
         </button>
         <ImportarPersonagemBotao />
         {fichas.map((f) => (
-          <button
+          <div
             key={f.id}
             className="fichas-lista__item"
             data-ativa={f.id === fichaAtiva?.id}
-            onClick={() => definirFichaAtiva(f.id)}
           >
-            <span className="fichas-lista__cor" style={{ background: f.corVisual }} />
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {f.nome || 'sem nome'}
-            </span>
+            <button type="button" className="fichas-lista__selecionar" onClick={() => definirFichaAtiva(f.id)} aria-pressed={f.id === fichaAtiva?.id} title={f.nome || 'sem nome'}>
+              <span className="fichas-lista__cor" style={{ background: f.corVisual }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {f.nome || 'sem nome'}
+              </span>
+            </button>
             <LinkJogadorBotao fichaId={f.id} fichaNome={f.nome} />
-            <span
+            <button
+              type="button"
               className="icone-botao"
-              role="button"
-              tabIndex={0}
+              aria-label={`excluir personagem ${f.nome || 'sem nome'}`}
+              title={`excluir personagem ${f.nome || 'sem nome'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 remover(f.id, f.nome);
               }}
-              style={{ color: 'var(--ruido)' }}
+              style={{ color: 'var(--ink-dim)' }}
             >
-              ×
-            </span>
-          </button>
+              <Icone nome="lixeira" />
+            </button>
+          </div>
         ))}
       </div>
       {fichaAtiva ? (

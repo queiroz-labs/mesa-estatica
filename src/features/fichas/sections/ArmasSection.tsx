@@ -158,7 +158,7 @@ export default function ArmasSection({ ficha, onChange, souMestre }: SecaoFichaP
                     </button>
                     <label
                       title="margem 10+ no ataque, ou 20 natural — dano máximo"
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '10px', cursor: 'pointer', color: 'var(--ink-faint)' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '12px', cursor: 'pointer', color: 'var(--ink-dim)' }}
                     >
                       <input
                         type="checkbox"

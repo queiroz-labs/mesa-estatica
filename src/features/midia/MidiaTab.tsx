@@ -9,6 +9,8 @@ import { useStore } from '../../state/store';
 import type { FaixaMidia } from '../../state/types';
 import SoundpadGrid from './SoundpadGrid';
 import AmbienciaPanel from './AmbienciaPanel';
+import ControleVolume from './ControleVolume';
+import Icone from '../../components/Icone';
 
 const formatarTempo = (segundos: number): string => {
   const m = Math.floor(segundos / 60);
@@ -149,9 +151,9 @@ export default function MidiaTab() {
       </div>
 
       <div className="secao" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="mono">{faixaAtual ? faixaAtual.nome : 'nenhuma faixa selecionada'}</span>
-          <span className="mono" style={{ fontSize: '12px', color: 'var(--ink-dim)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span className="mono" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{faixaAtual ? faixaAtual.nome : 'nenhuma faixa selecionada'}</span>
+          <span className="mono" style={{ fontSize: '12px', color: 'var(--ink-dim)', whiteSpace: 'nowrap' }}>
             {formatarTempo(posicaoExibida)} / {formatarTempo(duracao)}
           </span>
         </div>
@@ -167,18 +169,19 @@ export default function MidiaTab() {
             atualizarEstadoMidia({ posicaoSegundos: novaPosicao });
           }}
           disabled={!faixaAtual || duracao === 0}
+          aria-label="posição da música"
           title="arrastar pra outro ponto da faixa"
           style={{ width: '100%' }}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button onClick={() => ir('anterior')} disabled={ordenadas.length === 0}>
-            ‹‹ anterior
+            <Icone nome="seta-esquerda" /> anterior
           </button>
           <button className="acento" onClick={alternarTocar} disabled={ordenadas.length === 0}>
             {midia.tocando ? 'pausar' : 'tocar'}
           </button>
           <button onClick={() => ir('proxima')} disabled={ordenadas.length === 0}>
-            próxima ››
+            próxima <Icone nome="seta-direita" />
           </button>
           <button onClick={() => pular(-10)} disabled={!faixaAtual || duracao === 0} title="voltar 10s">
             −10s
@@ -191,27 +194,15 @@ export default function MidiaTab() {
             loop: {rotuloLoop}
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="vazio" style={{ fontSize: 12 }} title="volume da música — vale pra todo mundo, mestre e jogadores">
-            volume música (todos)
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={midia.volume}
-            onChange={(e) => definirVolumeMidia(Number(e.target.value))}
-            style={{ width: '260px' }}
-          />
-        </div>
+        <ControleVolume id="midia-volume" nome="música (todos)" volume={midia.volume} onChange={definirVolumeMidia}
+          title="volume da música — vale pra todo mundo, mestre e jogadores" />
       </div>
 
       <AmbienciaPanel />
       <SoundpadGrid />
 
       <div className="secao" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 className="label" style={{ margin: 0 }}>
             playlist
           </h3>
@@ -220,7 +211,8 @@ export default function MidiaTab() {
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
             placeholder="buscar por nome ou tag…"
-            style={{ fontSize: 12, flex: '1 1 200px', maxWidth: 260 }}
+            aria-label="buscar na playlist"
+            style={{ fontSize: 12, flex: '1 1 200px', minWidth: 0, maxWidth: 260 }}
           />
         </div>
         {ordenadas.length === 0 ? (
@@ -233,16 +225,10 @@ export default function MidiaTab() {
             return (
               <div
                 key={faixa.id}
+                className="midia-playlist-linha"
                 onClick={() => selecionar(faixa.id)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.4rem 0.5rem',
                   background: faixa.id === midia.faixaAtualId ? 'var(--concrete-1)' : undefined,
-                  border: '1px solid var(--concrete-2)',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
                 }}
               >
                 <span style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '0.3em' }}>
@@ -265,8 +251,9 @@ export default function MidiaTab() {
                   }}
                   disabled={idx === 0}
                   title="mover pra cima"
+                  aria-label={`mover ${faixa.nome} para cima`}
                 >
-                  ↑
+                  <Icone nome="seta-cima" />
                 </button>
                 <button
                   className="icone-botao"
@@ -276,8 +263,9 @@ export default function MidiaTab() {
                   }}
                   disabled={idx === ordenadas.length - 1}
                   title="mover pra baixo"
+                  aria-label={`mover ${faixa.nome} para baixo`}
                 >
-                  ↓
+                  <Icone nome="seta-baixo" />
                 </button>
                 <button
                   type="button"
@@ -286,9 +274,10 @@ export default function MidiaTab() {
                     e.stopPropagation();
                     void excluir(faixa);
                   }}
-                  style={{ color: 'var(--ruido)' }}
+                  title={`excluir música ${faixa.nome}`}
+                  aria-label={`excluir música ${faixa.nome}`}
                 >
-                  ×
+                  <Icone nome="lixeira" />
                 </button>
               </div>
             );

@@ -4,6 +4,7 @@ import type { TipoRolagemForcada } from '../../dice/registroForcados';
 import type { RollGroupResult } from '../../dice/useDiceBox';
 import { resolverTabela, validarCoberturaTabela } from '../../rules/data/tabelasSeed';
 import { useStore } from '../../state/store';
+import BadgePrivado from '../../components/BadgePrivado';
 
 /** Faces de dado com suporte a dado 3D físico no @3d-dice/dice-box-threejs.
  *  Fora desse conjunto, a rolagem é virtual (Math.random) e o banner/log
@@ -98,7 +99,7 @@ export default function RoladorTabelas({ ready, rolar: rolarNaBandeja }: Rolador
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 className="label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           Tabelas
-          <span className="badge">privado — só o mestre</span>
+          <BadgePrivado />
         </h3>
         <button
           className="icone-botao"

@@ -248,9 +248,15 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
         display: 'flex',
         alignItems: 'center',
         gap: '0.5rem',
-        overflow: 'hidden',
+        minWidth: 0,
+        maxWidth: '100%',
+        // visibility sozinha mantém a altura do texto no layout. O aviso oculto sai
+        // do fluxo, mas a bandeja filha continua com 60×60 para a física permanecer pronta.
+        position: visivel ? 'relative' : 'absolute',
+        height: visivel ? undefined : 0,
+        overflow: visivel ? undefined : 'hidden',
         visibility: visivel ? 'visible' : 'hidden',
-        width: visivel ? undefined : 0,
+        width: visivel ? undefined : 60,
       }}
     >
       {!modo2D && (
@@ -267,7 +273,7 @@ export default function RolagemAoVivoPlayer({ verProprias, ficha }: Props) {
           }}
         />
       )}
-      <span style={{ fontSize: 12, color: rotulo?.cor ?? 'var(--ink-dim)', whiteSpace: 'normal', maxWidth: 420 }}>
+      <span style={{ fontSize: 12, color: rotulo?.cor ?? 'var(--ink-dim)', whiteSpace: 'normal', overflowWrap: 'anywhere', minWidth: 0, maxWidth: 420 }}>
         {rotulo?.texto ?? ''}
       </span>
     </div>

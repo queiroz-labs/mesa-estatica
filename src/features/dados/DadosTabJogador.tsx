@@ -10,6 +10,7 @@ import RoladorSurtoJogador from './RoladorSurtoJogador';
 import RoladorTesteJogador from './RoladorTesteJogador';
 import RoladorTraumaJogador from './RoladorTraumaJogador';
 import RolagemLivreJogador from './RolagemLivreJogador';
+import './dados.css';
 
 interface Props {
   ficha: Ficha;
@@ -82,19 +83,11 @@ export default function DadosTabJogador({ ficha, active = true, pedidoRapidoSani
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+    <div className="dados-grade">
       {!modo2D && (
         <div
           id="dice-bandeja-jogador"
-          style={{
-            gridColumn: '1 / -1',
-            width: '100%',
-            height: '280px',
-            background: 'var(--concrete-0)',
-            border: '1px solid var(--concrete-2)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
+          className="dados-bandeja"
         />
       )}
       {modo2D && (
@@ -119,7 +112,7 @@ export default function DadosTabJogador({ ficha, active = true, pedidoRapidoSani
         <RolagemLivreJogador fichaId={ficha.id} ready={podeRolar} rolar={(notacao, onComplete, _colorset, _personagemId, _tipo, bonusLivre) =>
           rolarEBroadcast(notacao, onComplete, undefined, ficha.id, 'teste', bonusLivre, 'livre')} />
       </Fragment>
-      <div style={{ gridColumn: 'span 2' }}>
+      <div style={{ gridColumn: '1 / -1' }}>
         <FeedRolagensJogador />
       </div>
     </div>

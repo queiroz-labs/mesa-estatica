@@ -40,8 +40,11 @@ export function fadeVolume(
   const passo = (agora: number) => {
     if (terminou) return;
     if (tokenRef.current !== meuToken) { finalizar(); return; }
-    const t = Math.min(1, (agora - inicio) / duracaoMs);
-    audio.volume = de + (alvoClamped - de) * t;
+    // O timestamp compartilhado do rAF pode anteceder o performance.now() de uma
+    // rampa iniciada no mesmo frame. Progresso negativo extrapolaria o volume
+    // (ex.: 1 → 0 virava 1.003), valor rejeitado pelo HTMLMediaElement.
+    const t = Math.min(1, Math.max(0, (agora - inicio) / duracaoMs));
+    audio.volume = Math.min(1, Math.max(0, de + (alvoClamped - de) * t));
     if (t < 1) requestAnimationFrame(passo);
     else finalizar();
   };

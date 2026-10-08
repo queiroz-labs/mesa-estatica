@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icone from '../../components/Icone';
 import { useIniciativa } from '../../hooks/useIniciativa';
 import { CONDICOES_COMBATE } from '../../rules/data/condicoesCombate';
 import { useAoeStore, type AoeVivo } from '../../state/aoeStore';
@@ -181,22 +182,26 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
     <>
       <div className="mapa-aoe-toolbar">
         <button
-          className={forma === 'circulo' ? 'icone-botao acento' : 'icone-botao'}
+          className={forma === 'circulo' ? 'controle-icone acento' : 'controle-icone'}
           onClick={() => setForma((f) => (f === 'circulo' ? null : 'circulo'))}
+          aria-label="área de efeito circular"
+          aria-pressed={forma === 'circulo'}
           title="área de efeito — círculo (Esc sai do desenho)"
         >
-          ○
+          <Icone nome="circulo" />
         </button>
         <button
-          className={forma === 'quadrado' ? 'icone-botao acento' : 'icone-botao'}
+          className={forma === 'quadrado' ? 'controle-icone acento' : 'controle-icone'}
           onClick={() => setForma((f) => (f === 'quadrado' ? null : 'quadrado'))}
+          aria-label="área de efeito quadrada"
+          aria-pressed={forma === 'quadrado'}
           title="área de efeito — quadrado (Esc sai do desenho)"
         >
-          □
+          <Icone nome="quadrado" />
         </button>
         {template && (
-          <button className="icone-botao" onClick={limpar} title="limpar área">
-            ×
+          <button className="controle-icone" onClick={limpar} title="limpar área" aria-label="limpar área de efeito">
+            <Icone nome="lixeira" />
           </button>
         )}
       </div>
@@ -214,11 +219,11 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
 
       {template && (
         <div className="mapa-aoe-painel">
-          <p className="mono" style={{ margin: 0, fontSize: 11 }}>
+          <p className="mono" style={{ margin: 0, fontSize: 12 }}>
             {template.forma === 'circulo' ? 'raio' : 'metade do lado'} {formatarDistancia(tamanhoTemplateEmCelulas(template, grade) * grade.escala, grade.unidade)} · {alvosDentro.length} dentro
           </p>
           {alvosDentro.length > 0 && (
-            <p className="vazio" style={{ margin: '0.2rem 0', fontSize: 10 }}>
+            <p className="vazio" style={{ margin: '0.2rem 0', fontSize: 12 }}>
               {alvosDentro.map((a) => a.nome).join(', ')}
             </p>
           )}
@@ -226,16 +231,17 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
             <input
               type="number"
               placeholder="dano"
+              aria-label="dano para os alvos na área"
               value={danoInput}
               onChange={(ev) => setDanoInput(ev.target.value)}
-              style={{ width: 52, fontSize: 11 }}
+              style={{ width: 58, minHeight: 'var(--controle-altura-compacta)' }}
             />
-            <button className="icone-botao acento" onClick={aplicarDanoAosAlvos} disabled={alvosDentro.length === 0} style={{ fontSize: 10 }}>
+            <button className="icone-botao acento" onClick={aplicarDanoAosAlvos} disabled={alvosDentro.length === 0}>
               aplicar a {alvosDentro.length}
             </button>
           </div>
           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', marginTop: '0.3rem' }}>
-            <select value={condicaoInput} onChange={(ev) => setCondicaoInput(ev.target.value)} style={{ fontSize: 10 }}>
+            <select aria-label="condição para os alvos na área" value={condicaoInput} onChange={(ev) => setCondicaoInput(ev.target.value)} style={{ minHeight: 'var(--controle-altura-compacta)', minWidth: 0 }}>
               <option value="">condição…</option>
               {CONDICOES_COMBATE.map((c) => (
                 <option key={c.id} value={c.id}>{c.nome}</option>
@@ -245,7 +251,6 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
               className="icone-botao acento"
               onClick={aplicarCondicaoAosAlvos}
               disabled={!condicaoInput || alvosDentro.length === 0}
-              style={{ fontSize: 10 }}
             >
               aplicar a {alvosDentro.length}
             </button>

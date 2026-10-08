@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../../state/store';
+import BadgePrivado from '../../../components/BadgePrivado';
 
 /** §4 — Próximos eventos [Privado]: checklist de acontecimentos, é spoiler por definição. */
 export default function ProximosEventosSection() {
@@ -19,7 +20,7 @@ export default function ProximosEventosSection() {
   return (
     <section className="secao">
       <h3>
-        próximos eventos <span className="badge">privado</span>
+        próximos eventos <BadgePrivado />
       </h3>
 
       {eventos.length === 0 && <p className="vazio">nenhum evento planejado ainda.</p>}

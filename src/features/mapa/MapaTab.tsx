@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Avatar from '../../components/Avatar';
+import Icone from '../../components/Icone';
 import { calcularPvMaximo, calcularSanidadeMaxima } from '../../rules/derivados';
 import { calcularEstadoTokenCombate, condicoesExtrasToken } from '../../rules/combate';
 import { surtosAtivosNaSessao } from '../../rules/surto';
@@ -346,7 +347,7 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
                 onPointerDown={iniciarMoverGrade}
                 title="arrastar — mover o grid"
               >
-                ⊹
+                <Icone nome="mover" size={15} />
               </div>
               {ALCAS.map((a) => (
                 <div
@@ -387,19 +388,25 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
               title={partesTitulo.join(' — ')}
             >
               <Avatar nome={t.nome} cor={t.cor} foto={t.foto} silhueta={t.silhueta} tamanho={36} />
+              {(t.morto || t.desacordado) && (
+                <span className="mapa-token__estado" role="img" aria-label={t.morto ? 'morto' : 'desacordado'}>
+                  <Icone nome={t.morto ? 'caveira' : 'lua'} size={26} />
+                </span>
+              )}
               {condicoesExtras.length > 0 && <span className="mapa-token__condicoes">{badgeCondicoes(condicoesExtras)}</span>}
-              <span
+              <button
+                type="button"
                 className="mapa-token__remover"
-                role="button"
-                tabIndex={0}
+                title="remover token do mapa"
+                aria-label={`remover token de ${t.nome || 'sem nome'} do mapa`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   marcarRemocaoExplicita(t.id);
                   removerTokenMapa(t.id);
                 }}
               >
-                ×
-              </span>
+                <Icone nome="lixeira" size={13} />
+              </button>
             </div>
           );
         })}

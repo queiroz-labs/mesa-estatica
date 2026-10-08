@@ -1,4 +1,5 @@
 import { useStore } from '../../../state/store';
+import BadgePrivado from '../../../components/BadgePrivado';
 
 /** §6 — Estatísticas da sessão [Privado]. Personagens/NPCs/rolagens/surtos são derivados
  *  (contagem de arrays e contadores já mantidos pelo store); mortes não tem gatilho automático
@@ -12,7 +13,7 @@ export default function EstatisticasSection() {
   return (
     <section className="secao">
       <h3>
-        estatísticas da sessão <span className="badge">privado</span>
+        estatísticas da sessão <BadgePrivado />
       </h3>
       <div className="campos-grid mono" style={{ fontSize: '13px' }}>
         <span>Personagens: {totalFichas}</span>
