@@ -17,9 +17,9 @@ const CHAVE_DEBOUNCE = 'aoe';
  * quando o mestre limpa a ferramenta).
  *
  * Assimétrico de propósito: só `AoEOverlay.tsx` (GM-only, nunca entra no bundle do jogador)
- * chama `useAoeStore.getState().definirTemplate`. Este módulo roda igual nos dois lados —
- * o jogador só nunca aciona a metade que publica, porque não tem componente que escreve no
- * store. `AoEViewOverlay.tsx` (compartilhado) só lê `useAoeStore` pra desenhar.
+ * chama `useAoeStore.getState().definirTemplate`. O jogador usa `somenteLeitura` para
+ * receber sem criar a metade que publica ou reproduzir pendências do mestre.
+ * `AoEViewOverlay.tsx` (compartilhado) só lê `useAoeStore` pra desenhar.
  *
  * `private: true` (migração 0025) — canal privado do Realtime Authorization: SEND passa a
  * exigir a policy `is_gm()` em `realtime.messages`, então mesmo achando a anon key (pública por
@@ -27,7 +27,7 @@ const CHAVE_DEBOUNCE = 'aoe';
  * Antes disso o canal era broadcast público — a UI (`AoEOverlay.tsx` GM-only) era o único
  * limite, não o servidor.
  */
-export function iniciarSyncAoE(): () => void {
+export function iniciarSyncAoE({ somenteLeitura = false }: { somenteLeitura?: boolean } = {}): () => void {
   const cliente = supabase;
   if (!cliente) return () => {};
 
@@ -58,7 +58,17 @@ export function iniciarSyncAoE(): () => void {
     })
     .subscribe(assinarStatusCanal('aoe'));
 
+  // O jogador pode compartilhar origem/identidade com o GM e ler seus metadados de fila.
+  // Receber não autoriza reenviar uma limpeza ou publicar uma mudança local desse bundle.
+  if (somenteLeitura) return () => {
+    desconectarCanal('aoe');
+    cliente.removeChannel(canal);
+  };
+
   const enviarAgora = (_chave: string, template: AoeVivo) => {
+    // Esc/conclusão podem restaurar ou finalizar a área antes do debounce antigo disparar.
+    // Só o rascunho que ainda está ativo e atual pode publicar uma atualização de arrasto.
+    if (!template.ativa || useAoeStore.getState().template !== template) return;
     void canal.send({ type: 'broadcast', event: 'aoe-template', payload: { template } });
   };
   const agendarEnvio = criarDebouncePorChave<AoeVivo>(ATRASO_PUSH_MS, enviarAgora);
@@ -72,6 +82,7 @@ export function iniciarSyncAoE(): () => void {
       if (!useStatusMesa.getState().online) return Promise.resolve({ error: 'offline' });
       const atual = useAoeStore.getState().template;
       if (atual && !atual.ativa) void canal.send({ type: 'broadcast', event: 'aoe-template', payload: { template: atual } });
+      else if (!atual) void canal.send({ type: 'broadcast', event: 'aoe-fim', payload: {} });
       return Promise.resolve({ error: null });
     });
   };
@@ -82,10 +93,8 @@ export function iniciarSyncAoE(): () => void {
     templateAnterior = state.template;
 
     if (!state.template) {
-      // limpou — imediato, fora do debounce (mesmo remédio de `reguasSync.ts`: sem isso, o
-      // último template arrastado pode ficar pendurado na tela do jogador se o throttle
-      // nunca chegar a disparar antes do "limpar").
-      void canal.send({ type: 'broadcast', event: 'aoe-fim', payload: {} });
+      // Cancelamento também é estado final: precisa chegar ao jogador após uma queda.
+      enviarFinalComRetentativa();
       return;
     }
     // ainda arrastando: junta a rajada de pointermove numa escrita só. Soltou o ponteiro
@@ -94,8 +103,7 @@ export function iniciarSyncAoE(): () => void {
     else enviarFinalComRetentativa();
   });
 
-  // reenvia um template finalizado que ficou pendente de uma sessão anterior — só se ainda
-  // existir localmente e continuar `ativa: false` (senão a chave é só resolvida).
+  // Recupera o estado final ATUAL, inclusive null (limpeza); rascunho ativo não é replay.
   if (retomarPendenciasPersistidas('aoe').length > 0) {
     enviarFinalComRetentativa();
   }

@@ -36,6 +36,17 @@ Para multiplayer, copie `.env.example` para `.env` e preencha `VITE_SUPABASE_URL
 
 Ignorados enquanto o foco está num campo de texto.
 
+`Esc` sai das ferramentas de revelação e área de efeito do mapa, preservando as áreas
+concluídas. Durante um arrasto, cancela o rascunho. Encerrar ou resetar o combate pede
+confirmação; os nomes dos alvos selecionados aparecem antes do dano em grupo.
+
+O jogador vê **PV, Defesa e Determinação** acima das abas. Quando chega seu turno,
+**sua vez** aparece nesse resumo, mesmo fora da aba de combate.
+
+No quadro privado de **Pistas**, **revelar aos jogadores** publica o texto e o campo
+**ligado a** no log público e move a pista para **compartilhadas**. As setas apenas
+organizam o quadro; uma pista já revelada não é publicada de novo pelo botão.
+
 ## Música, ambiência e soundpad
 
 Na aba **Mídia**, o mestre controla música, ambiência e efeitos com volumes separados.
@@ -43,6 +54,8 @@ Na aba **Mídia**, o mestre controla música, ambiência e efeitos com volumes s
 inicia o loop contínuo. Tocar, pausar, parar ou ajustar a ambiência não reduz o volume da música.
 O soundpad continua disparando efeitos pontuais. Os jogadores usam **habilitar áudio** uma vez
 por página quando o navegador pedir; **mudo** silencia os três canais só para quem clicou.
+O botão **áudio** no cabeçalho do mestre permite pausar/retomar e ajustar os volumes de
+música e ambiência em qualquer aba. Esses ajustes valem para todos os jogadores.
 
 ## Resultados dos dados
 

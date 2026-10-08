@@ -1,0 +1,88 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { useAoeStore, type AoeVivo } from '../state/aoeStore';
+import { useStatusMesa } from '../lib/statusMesa';
+const h = vi.hoisted(() => ({ cliente: null as any }));
+vi.mock('../lib/supabaseClient', () => ({ get supabase() { return h.cliente; } }));
+import { iniciarSyncAoE } from './aoeSync';
+import { resolverPendencia, tentarTodasPendencias, usePendenciasStore } from './filaPendencias';
+const concluida: AoeVivo = { forma: 'circulo', origem: { x: 0.3, y: 0.3 }, alvo: { x: 0.5, y: 0.3 }, ativa: false };
+const rascunho: AoeVivo = { ...concluida, alvo: { x: 0.9, y: 0.9 }, ativa: true };
+let parar: () => void;
+let enviar: ReturnType<typeof vi.fn>;
+let handlers: Map<string, (mensagem: any) => void>;
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.useFakeTimers(); useAoeStore.setState({ template: concluida }); useStatusMesa.setState({ online: true });
+  enviar = vi.fn(() => Promise.resolve('ok'));
+  handlers = new Map();
+  h.cliente = { channel: () => { const c: any = { on: (_tipo: string, filtro: any, callback: any) => { handlers.set(filtro.event, callback); return c; }, subscribe: () => c, send: enviar }; return c; }, removeChannel: vi.fn() };
+  parar = iniciarSyncAoE();
+});
+afterEach(() => { parar(); h.cliente = null; resolverPendencia('aoe', 'aoe'); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
+it('cancelar arrasto publica área concluída anterior e não envia rascunho atrasado', async () => {
+  useAoeStore.getState().definirTemplate(rascunho);
+  useAoeStore.getState().definirTemplate(concluida);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(enviar).toHaveBeenCalledOnce();
+  expect(enviar).toHaveBeenCalledWith({ type: 'broadcast', event: 'aoe-template', payload: { template: concluida } });
+});
+it('cancelar primeiro desenho publica fim sem ressuscitar o rascunho', async () => {
+  useAoeStore.getState().definirTemplate(rascunho);
+  useAoeStore.getState().definirTemplate(null);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(enviar).toHaveBeenCalledOnce();
+  expect(enviar).toHaveBeenCalledWith({ type: 'broadcast', event: 'aoe-fim', payload: {} });
+});
+it('conclusão normal envia final imediatamente, e arrasto ativo ainda publica pelo debounce', async () => {
+  useAoeStore.getState().definirTemplate(rascunho);
+  await vi.advanceTimersByTimeAsync(80);
+  expect(enviar).toHaveBeenCalledWith({ type: 'broadcast', event: 'aoe-template', payload: { template: rascunho } });
+  const final = { ...rascunho, ativa: false };
+  useAoeStore.getState().definirTemplate(final);
+  expect(enviar).toHaveBeenCalledWith({ type: 'broadcast', event: 'aoe-template', payload: { template: final } });
+});
+it('cancelamento null offline chega na reconexão sem reenviar rascunho anterior', async () => {
+  useAoeStore.getState().definirTemplate(rascunho);
+  await vi.advanceTimersByTimeAsync(80);
+  enviar.mockClear();
+  useStatusMesa.setState({ online: false });
+  useAoeStore.getState().definirTemplate(null);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(usePendenciasStore.getState().itens).toContainEqual({ modulo: 'aoe', chave: 'aoe' });
+  expect(enviar).not.toHaveBeenCalled();
+  useStatusMesa.setState({ online: true }); tentarTodasPendencias();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(enviar).toHaveBeenCalledOnce();
+  expect(enviar).toHaveBeenCalledWith({ type: 'broadcast', event: 'aoe-fim', payload: {} });
+  expect(usePendenciasStore.getState().itens).not.toContainEqual({ modulo: 'aoe', chave: 'aoe' });
+});
+it('replay de final não publica rascunho ativo; null persistido recupera cancelamento', async () => {
+  parar();
+  usePendenciasStore.setState({ itens: [{ modulo: 'aoe', chave: 'aoe' }] });
+  useAoeStore.setState({ template: rascunho });
+  parar = iniciarSyncAoE();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(enviar).not.toHaveBeenCalled();
+  parar();
+  usePendenciasStore.setState({ itens: [{ modulo: 'aoe', chave: 'aoe' }] });
+  useAoeStore.setState({ template: null });
+  parar = iniciarSyncAoE();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(enviar).toHaveBeenCalledOnce();
+  expect(enviar).toHaveBeenCalledWith({ type: 'broadcast', event: 'aoe-fim', payload: {} });
+});
+it('jogador recebe área/fim mas não publica nem executa fila persistida do GM', async () => {
+  parar();
+  usePendenciasStore.setState({ itens: [{ modulo: 'aoe', chave: 'aoe' }] });
+  useAoeStore.setState({ template: null });
+  parar = iniciarSyncAoE({ somenteLeitura: true });
+  handlers.get('aoe-template')!({ payload: { template: concluida } });
+  expect(useAoeStore.getState().template).toEqual(concluida);
+  handlers.get('aoe-fim')!({});
+  expect(useAoeStore.getState().template).toBeNull();
+  useAoeStore.getState().definirTemplate(rascunho);
+  useAoeStore.getState().definirTemplate(null);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(enviar).not.toHaveBeenCalled();
+  expect(usePendenciasStore.getState().itens).toContainEqual({ modulo: 'aoe', chave: 'aoe' });
+});

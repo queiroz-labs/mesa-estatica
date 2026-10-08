@@ -9,6 +9,8 @@
 
 Tudo abaixo está implementado, testado e em produção salvo indicação em contrário.
 
+- **Controles de sessão (08/10)**: áudio compacto no cabeçalho do mestre, resumo de PV/Defesa/Determinação e aviso de turno em todas as abas do jogador, Esc nas ferramentas de mapa preservando áreas concluídas, nomes dos alvos antes do dano em grupo, revelação de pista com um clique e confirmação de encerramento/reset do combate. Reusa regras, stores e sincronização existentes, sem dependência ou migração nova. Copiar resultado da rolagem ficou fora por escolha do usuário. Validado no dev com mestre/jogador, 1.019 testes e build/lint aprovados.
+
 - **Ambiência (08/10)**: biblioteca de uploads própria, loop nativo, tocar/pausar/parar/seek e volume independente da música e do soundpad. Validada primeiro no dev com mestre e jogador (uploads R2, repetição, pausa, troca, volumes, mudo e recarga), backups antigos e 779 testes; migração aditiva `0041_ambiencia.sql` em `midia_estado`, sem alterar as permissões existentes.
 
 - **QA pré-sessão (08/10)**: rodada real mestre/jogador, resultados de Trauma/Sanidade/Surto esclarecidos, pedidos de dado consumidos uma vez, sigilo de NPC/logs e rolagens preservado, réguas com primeiro envio imediato, reconciliação de tokens e correções de áudio/mapas. Token PC usa broadcast confirmado no servidor após UPDATE RLS (`0042`), com versão e fallback Postgres Changes: mediana de entrega caiu de 524 ms para 54 ms no teste com duas conexões na mesma máquina/dev. Detalhes e limites em [QA-2026-10-08.md](.claude/docs/QA-2026-10-08.md).

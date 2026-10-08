@@ -1,12 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIniciativa } from '../../hooks/useIniciativa';
 import { CONDICOES_COMBATE } from '../../rules/data/condicoesCombate';
-import { useAoeStore } from '../../state/aoeStore';
+import { useAoeStore, type AoeVivo } from '../../state/aoeStore';
 import { useStore } from '../../state/store';
 import type { GradeMapa } from '../../state/types';
 import AoEViewOverlay from './AoEViewOverlay';
 import { pontoDentroTemplate, tamanhoTemplateEmCelulas, type FormaAoE } from './aoeGeometria';
 import { centroDaCelula, formatarDistancia, getImgRenderRect, retanguloConteudo, type Ponto } from './mapaUtils';
+import { liberarCapturaMapa, registrarEscFerramentaMapa, type CapturaMapa } from './atalhosFerramentasMapa';
 
 interface Props {
   imgRenderRect: { offsetX: number; offsetY: number; renderW: number; renderH: number } | null;
@@ -44,6 +45,24 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
   const [danoInput, setDanoInput] = useState('');
   const [condicaoInput, setCondicaoInput] = useState('');
   const desenhandoRef = useRef(false);
+  const templateAnteriorRef = useRef<AoeVivo | null>(null);
+  const capturaRef = useRef<CapturaMapa | null>(null);
+
+  const sairDoDesenho = useCallback(() => {
+    const estavaDesenhando = desenhandoRef.current;
+    desenhandoRef.current = false;
+    setForma(null);
+    if (estavaDesenhando) definirTemplate(templateAnteriorRef.current);
+    templateAnteriorRef.current = null;
+    const captura = capturaRef.current;
+    capturaRef.current = null;
+    liberarCapturaMapa(captura);
+  }, [definirTemplate]);
+
+  useEffect(() => {
+    if (!forma) return;
+    return registrarEscFerramentaMapa(() => containerRef.current, sairDoDesenho);
+  }, [forma, containerRef, sairDoDesenho]);
 
   const posicaoNormalizada = useCallback(
     (e: { clientX: number; clientY: number }): Ponto | null => {
@@ -71,6 +90,9 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
       if (!p) return;
       e.preventDefault();
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      capturaRef.current = { alvo: e.currentTarget as Element, ponteiroId: e.pointerId };
+      const anterior = useAoeStore.getState().template;
+      templateAnteriorRef.current = anterior && !anterior.ativa ? anterior : null;
       const snap = centroDaCelula(p.x, p.y, grade);
       desenhandoRef.current = true;
       definirTemplate({ forma, origem: snap, alvo: snap, ativa: true });
@@ -94,7 +116,10 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
   );
 
   const onPointerUp = useCallback(() => {
+    if (!desenhandoRef.current) return;
     desenhandoRef.current = false;
+    capturaRef.current = null;
+    templateAnteriorRef.current = null;
     const atual = useAoeStore.getState().template;
     // ativa:false — sinal pro aoeSync.ts mandar a posição final na hora, fora do debounce.
     if (atual) definirTemplate({ ...atual, ativa: false });
@@ -113,16 +138,17 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
   const aplicarDanoAosAlvos = () => {
     const valor = Number(danoInput);
     if (!valor || alvosDentro.length === 0) return;
-    const nomes: string[] = [];
+    const nomesPublicos: string[] = [];
+    const nomesOcultos: string[] = [];
     for (const alvo of alvosDentro) {
       const pv = pvDoCombatente(alvo.participanteId, alvo.tipo);
       if (!pv) continue;
       pv.aplicar(-Math.abs(valor));
-      nomes.push(alvo.nome);
+      const oculto = alvo.tipo === 'npc' && !npcs.find((npc) => npc.id === alvo.participanteId)?.visivel;
+      (oculto ? nomesOcultos : nomesPublicos).push(alvo.nome);
     }
-    if (nomes.length > 0) {
-      registrarLog('dano', `área de efeito (${forma}) — ${nomes.join(', ')}: -${Math.abs(valor)} PV`, null);
-    }
+    if (nomesPublicos.length > 0) registrarLog('dano', `área de efeito (${template?.forma}) — ${nomesPublicos.join(', ')}: -${Math.abs(valor)} PV`, null, 'publica');
+    if (nomesOcultos.length > 0) registrarLog('dano', `área de efeito (${template?.forma}) — ${nomesOcultos.join(', ')}: -${Math.abs(valor)} PV`, null, 'privada');
     setDanoInput('');
   };
 
@@ -140,6 +166,11 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
   };
 
   const limpar = () => {
+    desenhandoRef.current = false;
+    templateAnteriorRef.current = null;
+    const captura = capturaRef.current;
+    capturaRef.current = null;
+    liberarCapturaMapa(captura);
     definirTemplate(null);
     setForma(null);
     setDanoInput('');
@@ -152,14 +183,14 @@ export default function AoEOverlay({ imgRenderRect, tamanho, grade, containerRef
         <button
           className={forma === 'circulo' ? 'icone-botao acento' : 'icone-botao'}
           onClick={() => setForma((f) => (f === 'circulo' ? null : 'circulo'))}
-          title="área de efeito — círculo"
+          title="área de efeito — círculo (Esc sai do desenho)"
         >
           ○
         </button>
         <button
           className={forma === 'quadrado' ? 'icone-botao acento' : 'icone-botao'}
           onClick={() => setForma((f) => (f === 'quadrado' ? null : 'quadrado'))}
-          title="área de efeito — quadrado"
+          title="área de efeito — quadrado (Esc sai do desenho)"
         >
           □
         </button>

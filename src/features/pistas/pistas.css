@@ -39,6 +39,7 @@
 
 .pista-card__rodape {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 0.4rem;
@@ -48,4 +49,12 @@
 .pista-card__acoes {
   display: flex;
   gap: 0.3rem;
+}
+
+.pista-card__revelar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3em 0.5em;
+  font-size: 11px;
 }

@@ -6,6 +6,7 @@ import FichasTab from '../features/fichas/FichasTab';
 import MapaTab from '../features/mapa/MapaTab';
 import MidiaPlayerGM from '../features/midia/MidiaPlayerGM';
 import AmbienciaPlayer from '../features/midia/AmbienciaPlayer';
+import ControleAudioRapido from '../features/midia/ControleAudioRapido';
 import MidiaTab from '../features/midia/MidiaTab';
 import SoundpadPlayer from '../features/midia/SoundpadPlayer';
 import GateOverlay from '../features/multiplayer/GateOverlay';
@@ -410,19 +411,22 @@ export default function App() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          flexShrink: 0,
+          gap: '0.6rem 1rem',
           padding: '0.75rem 1.5rem',
           borderBottom: '1px solid var(--concrete-2)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem 1.5rem', minWidth: 0 }}>
           <h1
             onClick={abrirControle}
             title="abrir controle — janela secreta do mestre (atalho: C)"
-            style={{ fontSize: '18px', margin: 0, cursor: 'pointer' }}
+            style={{ fontSize: '18px', margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             Estática — Mesa
           </h1>
-          <nav style={{ display: 'flex', gap: '0.4rem' }}>
+          <nav style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
             {ABAS.map((a) => {
               const atalho = ATALHOS[a.id];
               const ativa = aba === a.id;
@@ -451,11 +455,12 @@ export default function App() {
             })}
           </nav>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem 1rem' }}>
           <MidiaPlayerGM />
           <AmbienciaPlayer />
           <SoundpadPlayer />
           <RolagemAoVivoPlayer verProprias />
+          <ControleAudioRapido />
           <VinculoMestre />
           <ExportarImportar abrirControle={abrirControle} />
         </div>

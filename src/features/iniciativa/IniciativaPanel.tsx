@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { estaMorto } from '../../rules/combate';
 import { CONDICOES_COMBATE, REGRAS_GERAIS_COMBATE } from '../../rules/data/condicoesCombate';
 import { TABELA_SURTO } from '../../rules/data/surto';
@@ -8,6 +8,7 @@ import BarraSegmentada from '../fichas/BarraSegmentada';
 import ArmasCombate from '../combate/ArmasCombate';
 import ArmasCombateNpc from '../combate/ArmasCombateNpc';
 import { IconeAdiar, IconeChevron, IconeDado, IconeEscudo, IconeMais } from '../combate/icones';
+import ConfirmacaoCombate from './ConfirmacaoCombate';
 
 interface IniciativaPanelProps {
   hook: ReturnType<typeof useIniciativa>;
@@ -46,10 +47,19 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
   const [condicaoEmMassa, setCondicaoEmMassa] = useState('');
   const [mostrarRegras, setMostrarRegras] = useState(false);
   const [mostrarCondicoes, setMostrarCondicoes] = useState(false);
+  const [confirmacao, setConfirmacao] = useState<'encerrar' | 'resetar' | null>(null);
+  const cancelarConfirmacao = useCallback(() => setConfirmacao(null), []);
+  const confirmar = () => {
+    if (confirmacao === 'encerrar') encerrarModoCombate();
+    else if (confirmacao === 'resetar') resetar();
+    setConfirmacao(null);
+  };
+  const nomesSelecionados = iniciativa.filter((entrada) => selecionadosAplicar.has(entrada.participanteId)).map((entrada) => entrada.nome || 'sem nome');
 
   return (
     <>
       {header}
+      {confirmacao && <ConfirmacaoCombate acao={confirmacao} combateAtivo={modoCombate} onCancelar={cancelarConfirmacao} onConfirmar={confirmar} />}
 
       <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         {selecionadosIniciativa.length > 0 && (
@@ -69,7 +79,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
                 </button>
               </>
             )}
-            <button className="icone-botao perigo" onClick={encerrarModoCombate}>
+            <button className="icone-botao perigo" onClick={() => setConfirmacao('encerrar')}>
               encerrar
             </button>
           </>
@@ -78,7 +88,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
             iniciar
           </button>
         )}
-        <button className="icone-botao perigo" onClick={resetar}>
+        <button className="icone-botao perigo" onClick={() => { if (modoCombate || iniciativa.length > 0) setConfirmacao('resetar'); else resetar(); }}>
           resetar
         </button>
         <button
@@ -489,6 +499,8 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
             );
           })}
           {selecionadosAplicar.size > 0 && (
+            <div>
+            <p className="vazio" style={{ margin: '0.3rem 0 0.15rem', fontSize: 11 }}>alvos selecionados: {nomesSelecionados.join(', ')}</p>
             <div
               style={{
                 display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem',
@@ -554,6 +566,7 @@ export default function IniciativaPanel({ hook, header, banner, estiloItem, pode
               >
                 limpar seleção
               </button>
+            </div>
             </div>
           )}
           {/* também disponível COM o combate em andamento: o retardatário entra na posição do

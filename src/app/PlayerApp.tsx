@@ -40,6 +40,7 @@ import { COR_NPC_PADRAO } from '../state/factories';
 import AvisoSupabaseAusente from './AvisoSupabaseAusente';
 import DesyncIndicadorJogador from './DesyncIndicadorJogador';
 import LogTabJogador from './LogTabJogador';
+import ResumoJogador from './ResumoJogador';
 import '../features/fichas/ficha.css';
 
 type AbaId = 'sessao' | 'personagens' | 'dados' | 'npcs' | 'mapa' | 'midia' | 'log';
@@ -120,9 +121,9 @@ export default function PlayerApp() {
       // mesmo módulo do mestre: aqui ele é só leitura na prática (o jogador não tem UI de
       // soundpad, e a RLS só deixa o GM escrever).
       pararSoundpad = iniciarSyncSoundpad();
-      // idem — só o AoEOverlay.tsx (GM-only, fora deste bundle) escreve no aoeStore; aqui é
-      // sempre leitura.
-      pararAoE = iniciarSyncAoE();
+      // Somente leitura explícita: hidratação e metadados de retry do mestre na mesma
+      // origem nunca podem publicar uma área ou limpeza pelo cliente do jogador.
+      pararAoE = iniciarSyncAoE({ somenteLeitura: true });
       // Biblioteca/mapa ativo são somente leitura explícita: hidratação e filas antigas
       // não podem gerar publicação GM-only no cliente do jogador.
       pararMapasBiblioteca = iniciarSyncMapasBiblioteca({ somenteLeitura: true });
@@ -240,6 +241,7 @@ export default function PlayerApp() {
         </div>
       </header>
       <DestaqueSuperior />
+      <ResumoJogador minhaFicha={possuiFicha ? minhaFicha : null} iniciativa={iniciativa} />
       <main style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <div
           style={{

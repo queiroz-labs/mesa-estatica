@@ -1,0 +1,113 @@
+.audio-rapido {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.audio-rapido-abrir {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  padding: 0.4em 0.65em;
+}
+
+.audio-rapido-sinal {
+  width: 5px;
+  height: 5px;
+  background: var(--ink-dim);
+}
+
+.audio-rapido-sinal[data-tocando='true'] {
+  background: var(--rede);
+}
+
+.audio-rapido-painel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 65;
+  width: 280px;
+  max-width: calc(100vw - 2rem);
+  padding: 0.75rem;
+  background: var(--concrete-1);
+  color: var(--ink);
+  border: 1px solid var(--rede-dim);
+  border-radius: 2px;
+  outline: none;
+}
+
+.audio-rapido-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.audio-rapido-cabecalho h2,
+.audio-rapido-cabecalho h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.audio-rapido-fechar {
+  padding: 0.1em 0.45em;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.audio-rapido-ajuda,
+.audio-rapido-estado {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.audio-rapido-ajuda {
+  margin: 0.4rem 0 0.6rem;
+}
+
+.audio-rapido-estado[data-tocando='true'] {
+  color: var(--rede);
+}
+
+.audio-rapido-canal {
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--concrete-2);
+}
+
+.audio-rapido-faixa {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-rapido-transporte {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  padding: 0.25em 0.7em;
+}
+
+.audio-rapido-volume {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.audio-rapido-volume label {
+  margin: 0;
+}
+
+.audio-rapido-volume span {
+  font-size: 11px;
+}
+
+.audio-rapido-volume input {
+  grid-column: 1 / -1;
+  padding: 0;
+  accent-color: var(--rede);
+}

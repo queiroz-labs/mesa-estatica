@@ -1,0 +1,47 @@
+.resumo-jogador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+  flex-shrink: 0;
+  padding: 0.35rem 1.5rem;
+  border-bottom: 1px solid var(--concrete-2);
+  background: var(--concrete-0);
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.resumo-jogador__valores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-width: 0;
+}
+
+.resumo-jogador__valores span {
+  white-space: nowrap;
+}
+
+.resumo-jogador__valores strong {
+  color: var(--ink);
+}
+
+.resumo-jogador__turno {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--rede-dim);
+  border-radius: 2px;
+  color: var(--rede);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .resumo-jogador {
+    padding-inline: 0.75rem;
+  }
+
+  .resumo-jogador__valores {
+    gap: 0.25rem 0.75rem;
+  }
+}

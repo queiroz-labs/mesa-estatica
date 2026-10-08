@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../state/store';
 import type { Pista, StatusPista } from '../../state/types';
 import { IconeCheck, IconeMegafone, IconePrancheta } from '../combate/icones';
+import { revelarPistaAosJogadores } from './revelarPista';
 import './pistas.css';
 
 const COLUNAS: { status: StatusPista; titulo: string; cor: string; vazio: string }[] = [
@@ -17,7 +18,6 @@ function formatarPista(pista: Pista): string {
 function PistaCard({ pista }: { pista: Pista }) {
   const atualizarPista = useStore((s) => s.atualizarPista);
   const removerPista = useStore((s) => s.removerPista);
-  const registrarLog = useStore((s) => s.registrarLog);
   const [copiado, setCopiado] = useState(false);
   const [erroCopia, setErroCopia] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
@@ -34,11 +34,6 @@ function PistaCard({ pista }: { pista: Pista }) {
   const indiceAtual = COLUNAS.findIndex((c) => c.status === pista.status);
   const anterior = COLUNAS[indiceAtual - 1];
   const proxima = COLUNAS[indiceAtual + 1];
-
-  const revelarNoLog = () => {
-    registrarLog('anotacao', `pista revelada: ${pista.texto}${pista.ligadoA ? ` — ligado a: ${pista.ligadoA}` : ''}`, null, 'publica');
-    atualizarPista(pista.id, { reveladoEm: new Date().toISOString() });
-  };
 
   const copiar = async () => {
     setErroCopia(false);
@@ -84,18 +79,19 @@ function PistaCard({ pista }: { pista: Pista }) {
         </div>
         <div className="pista-card__acoes">
           <button
-            className="icone-botao"
-            disabled={pista.status !== 'compartilhada' || !!pista.reveladoEm}
+            className="acento pista-card__revelar"
+            disabled={!pista.texto.trim() || !!pista.reveladoEm}
             title={
-              pista.status !== 'compartilhada'
-                ? 'mova pra "compartilhadas" antes de revelar no log'
-                : pista.reveladoEm
+              pista.reveladoEm
                   ? 'já revelado no log'
-                  : 'revelar no log público (aparece pro jogador)'
+                  : !pista.texto.trim()
+                    ? 'preencha o texto antes de revelar'
+                    : 'publicar o texto e o campo ligado a no log dos jogadores'
             }
-            onClick={revelarNoLog}
+            onClick={() => revelarPistaAosJogadores(pista.id)}
           >
             {pista.reveladoEm ? <IconeCheck size={11} /> : <IconeMegafone size={11} />}
+            {pista.reveladoEm ? 'revelada no log' : 'revelar aos jogadores'}
           </button>
           <button
             className="icone-botao"
@@ -162,8 +158,8 @@ export default function PistasTab() {
         </button>
       </div>
       <p className="vazio" style={{ marginBottom: '1rem' }}>
-        esta aba não existe no app do jogador — mesmo publicado no site, ninguém além do mestre a vê. marcar uma pista como
-        "compartilhada" não revela nada sozinho; use "revelar no log" pra postar como anotação pública, visível ao jogador.
+        quadro privado do mestre. “revelar aos jogadores” publica o texto e o campo “ligado a” no log público e move a pista
+        para “compartilhadas”. As setas só organizam o quadro.
       </p>
 
       <div className="pista-quadro">

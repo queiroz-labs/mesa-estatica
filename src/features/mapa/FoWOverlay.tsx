@@ -5,6 +5,7 @@ import type { ZonaFoW } from '../../state/types';
 import FoWViewOverlay from './FoWViewOverlay';
 import { retanguloConteudo, getImgRenderRect, type Ponto } from './mapaUtils';
 import { useMapaAtivo } from './useMapaAtivo';
+import { liberarCapturaMapa, registrarEscFerramentaMapa, type CapturaMapa } from './atalhosFerramentasMapa';
 
 type Modo = 'revelar' | 'cobrirLuz' | 'esquecer' | 'desligado';
 
@@ -72,6 +73,22 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
   const [modalApagarAberto, setModalApagarAberto] = useState(false);
   const desenhandoRef = useRef(false);
   const origemRef = useRef<Ponto | null>(null);
+  const capturaRef = useRef<CapturaMapa | null>(null);
+
+  const sairDoDesenho = useCallback(() => {
+    desenhandoRef.current = false;
+    origemRef.current = null;
+    definirRascunho(null);
+    setModo('desligado');
+    const captura = capturaRef.current;
+    capturaRef.current = null;
+    liberarCapturaMapa(captura);
+  }, [definirRascunho]);
+
+  useEffect(() => {
+    if (modo === 'desligado') return;
+    return registrarEscFerramentaMapa(() => containerRef.current, sairDoDesenho);
+  }, [modo, containerRef, sairDoDesenho]);
 
   useEffect(() => () => definirRascunho(null), [definirRascunho]);
 
@@ -113,6 +130,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
       e.preventDefault();
       e.stopPropagation(); // impede o handler da régua/tokens no `.mapa-area` parent de interferir
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      capturaRef.current = { alvo: e.currentTarget as Element, ponteiroId: e.pointerId };
       origemRef.current = p;
       desenhandoRef.current = true;
       definirRascunho({
@@ -151,6 +169,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     desenhandoRef.current = false;
+    capturaRef.current = null;
     const r = useFowStore.getState().rascunho;
     origemRef.current = null;
     definirRascunho(null);
@@ -201,7 +220,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
           className="icone-botao"
           data-ativo={modo === 'revelar' ? 'true' : undefined}
           onClick={() => trocarModo('revelar')}
-          title="revelar (entra em vistas e luz atual)"
+          title="revelar (entra em vistas e luz atual) — Esc sai do desenho"
         >
           revelar
         </button>
@@ -209,7 +228,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
           className="icone-botao"
           data-ativo={modo === 'cobrirLuz' ? 'true' : undefined}
           onClick={() => trocarModo('cobrirLuz')}
-          title="cobrir luz (mantém memória)"
+          title="cobrir luz (mantém memória) — Esc sai do desenho"
         >
           cobrir luz
         </button>
@@ -217,7 +236,7 @@ function FerramentasFoW({ imgRenderRect, tamanho, containerRef, imgRef }: Props)
           className="icone-botao"
           data-ativo={modo === 'esquecer' ? 'true' : undefined}
           onClick={() => trocarModo('esquecer')}
-          title="esquecer (some com a área — volta a nunca-visto)"
+          title="esquecer (some com a área — volta a nunca-visto) — Esc sai do desenho"
         >
           esquecer
         </button>
