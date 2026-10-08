@@ -7,6 +7,7 @@ import { paraFichaPublica, type LinhaPublico as LinhaFichaPublico } from './fich
 import type { FichaPublica } from './fichaSplit';
 import { paraEntrada, type LinhaIniciativa } from './iniciativaSync';
 import { paraEstadoMidia, type Linha as LinhaMidiaEstado } from './midiaEstadoSync';
+import { normalizarAmbiencia } from '../state/ambiencia';
 import { paraFaixa, type LinhaFaixa } from './midiaFaixasSync';
 import { paraNpcPublico, type LinhaPublico as LinhaNpcPublico, type NpcPublico } from './npcsSync';
 import { paraSessaoPublica, type Linha as LinhaSessaoPublica } from './sessaoPublicaSync';
@@ -102,7 +103,7 @@ export function useHidratarMidia(): void {
         .then(({ data, error }) => {
           if (cancelado) return;
           if (error) return console.error('[hidratacaoJogador] busca de midia_estado falhou', error);
-          if (data) useStore.setState((s) => ({ midia: { ...s.midia, ...paraEstadoMidia(data as LinhaMidiaEstado) } }));
+          if (data) useStore.setState((s) => ({ midia: { ...s.midia, ...paraEstadoMidia(data as LinhaMidiaEstado) }, ambiencia: normalizarAmbiencia((data as LinhaMidiaEstado).ambiencia) }));
         });
     void refetchEstado();
 
@@ -129,7 +130,7 @@ export function useHidratarMidia(): void {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'midia_estado' }, (payload) => {
         if (payload.eventType === 'DELETE') return;
         const patch = paraEstadoMidia(payload.new as LinhaMidiaEstado);
-        useStore.setState((s) => ({ midia: { ...s.midia, ...patch } }));
+        useStore.setState((s) => ({ midia: { ...s.midia, ...patch }, ambiencia: normalizarAmbiencia((payload.new as LinhaMidiaEstado).ambiencia) }));
       })
       .subscribe(assinarStatusCanalComRefetch('jogador-midia-estado', refetchEstado));
 

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { fadeVolume } from '../../lib/audioFade';
 import { calcularPosicaoEsperada, precisaResincronizar } from '../../multiplayer/posicaoMidia';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
 import { useStore } from '../../state/store';
+import { habilitarAudioJogador, useAudioJogadorStore } from '../../state/audioJogadorStore';
 
 const FATOR_DUCK = 0.35;
 const FADE_TROCA_MS = 700;
@@ -12,7 +13,6 @@ const FADE_DUCK_MS = 250;
  *  (multiplayer/auth.ts): localStorage direto, fora da store principal. Precisa ser assim porque
  *  o `persist` de `useStore` é um no-op no bundle do jogador de propósito (store.ts) — reter
  *  aqui o estado da MESA anterior seria o bug errado a evitar. */
-const CHAVE_AUDIO_HABILITADO = 'estatica-audio-habilitado';
 
 /**
  * Motor de playback do lado do jogador — renderizado dentro do `<header>` do `PlayerApp.tsx`
@@ -34,13 +34,8 @@ export default function MidiaPlayerJogador() {
   const mudo = useSoundpadUiStore((s) => s.mudo);
   const definirMudo = useSoundpadUiStore((s) => s.definirMudo);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [desbloqueado, setDesbloqueado] = useState(() => {
-    try {
-      return localStorage.getItem(CHAVE_AUDIO_HABILITADO) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const desbloqueado = useAudioJogadorStore((s) => s.habilitado);
+  const setDesbloqueado = useAudioJogadorStore((s) => s.definirHabilitado);
 
   // reverte a preferência salva se o autoplay "herdado" (sem gesto novo nesta carga de página)
   // for negado de verdade pelo navegador — sem isso, quem salvou a preferência antes do
@@ -48,11 +43,6 @@ export default function MidiaPlayerJogador() {
   // Chrome) fica com o botão escondido e nenhum som, sem nenhum caminho de retry visível.
   const desbloquearFalhou = () => {
     setDesbloqueado(false);
-    try {
-      localStorage.removeItem(CHAVE_AUDIO_HABILITADO);
-    } catch {
-      // sem acesso a storage — nada a limpar
-    }
   };
 
   const fadeTokenRef = useRef(0);
@@ -117,12 +107,7 @@ export default function MidiaPlayerJogador() {
   }, [mudo]);
 
   const habilitar = () => {
-    setDesbloqueado(true);
-    try {
-      localStorage.setItem(CHAVE_AUDIO_HABILITADO, '1');
-    } catch {
-      // sem acesso a storage — a preferência só vale pra esta carga de página, sem persistir
-    }
+    habilitarAudioJogador();
     const audio = audioRef.current;
     if (audio && midia.tocando) {
       audio.play().catch((erro) => {

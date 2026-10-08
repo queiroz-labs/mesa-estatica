@@ -48,7 +48,7 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     });
   };
 
-  for (const campo of ['sessaoPrivada', 'sessaoPublica', 'midia', 'soundpad']) objetar(campo, dados[campo]);
+  for (const campo of ['sessaoPrivada', 'sessaoPublica', 'midia', 'ambiencia', 'soundpad']) objetar(campo, dados[campo]);
   if (registro(dados.sessaoPrivada)) {
     for (const campo of ['eventos', 'lembretes']) {
       visitarLista(`sessaoPrivada.${campo}`, dados.sessaoPrivada[campo], (item, caminho) => textar(`${caminho}.texto`, item.texto));
@@ -63,6 +63,11 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     });
   }
   if (registro(dados.soundpad)) listarDeObjetos('soundpad.sons', dados.soundpad.sons);
+  if (registro(dados.ambiencia)) {
+    visitarLista('ambiencia.faixas', dados.ambiencia.faixas, (item, caminho) => {
+      for (const campo of ['id', 'nome', 'path', 'url']) textar(`${caminho}.${campo}`, item[campo]);
+    });
+  }
   visitarLista('tabelas', dados.tabelas, (item, caminho) => listarDeObjetos(`${caminho}.entradas`, item.entradas));
 
   listar('fichas', dados.fichas);

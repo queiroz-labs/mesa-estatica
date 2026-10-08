@@ -8,6 +8,7 @@ import { useMidiaUiStore } from '../../state/midiaUiStore';
 import { useStore } from '../../state/store';
 import type { FaixaMidia } from '../../state/types';
 import SoundpadGrid from './SoundpadGrid';
+import AmbienciaPanel from './AmbienciaPanel';
 
 const formatarTempo = (segundos: number): string => {
   const m = Math.floor(segundos / 60);
@@ -206,6 +207,7 @@ export default function MidiaTab() {
         </div>
       </div>
 
+      <AmbienciaPanel />
       <SoundpadGrid />
 
       <div className="secao" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

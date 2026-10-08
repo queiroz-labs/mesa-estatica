@@ -16,3 +16,5 @@ supabase/.temp/
 # artefatos de teste no navegador (Playwright MCP) e screenshots de validação
 .playwright-mcp/
 fow-*.png
+# Evidências e arquivos temporários de validação local (nunca publicados).
+.qa-*

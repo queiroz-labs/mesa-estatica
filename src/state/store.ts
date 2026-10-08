@@ -10,6 +10,7 @@ import { inserirNaIniciativa, ordenarIniciativa } from '../rules/teste';
 import { marcarLocalErro, marcarLocalOk } from '../lib/statusMesa';
 import { validarTiposEstado } from './validarImportacao';
 import { QUANTIDADE_SLOTS_SOUNDPAD } from './soundpad';
+import { normalizarAmbiencia } from './ambiencia';
 import {
   COR_NPC_PADRAO,
   criarEstadoInicial,
@@ -35,6 +36,7 @@ import type {
   EstadoGlobal,
   EstadoMapa,
   EstadoMidia,
+  EstadoAmbiencia,
   FaixaMidia,
   Ficha,
   GradeMapa,
@@ -275,6 +277,11 @@ interface Acoes {
   definirVolumeMidia: (volume: number) => void;
   definirModoLoopMidia: (modoLoop: EstadoMidia['modoLoop']) => void;
   definirTagFaixaMidia: (id: string, tag: string) => void;
+
+  adicionarFaixaAmbiencia: (nome: string, path: string, url: string) => string;
+  removerFaixaAmbiencia: (id: string) => void;
+  atualizarEstadoAmbiencia: (patch: Partial<Pick<EstadoAmbiencia, 'faixaAtualId' | 'tocando' | 'posicaoSegundos'>>) => void;
+  definirVolumeAmbiencia: (volume: number) => void;
 
   /** Grava o som no slot (0–11), sobrescrevendo o que estiver lá — é o "substituir" da UI. */
   definirSomSoundpad: (slot: number, nome: string, path: string, url: string) => string;
@@ -668,6 +675,10 @@ export function migrate(persistedState: unknown, versaoAnterior: number): Store 
     } else {
       estado.mapa = { biblioteca: [], mapaAtivoId: null, tokens: antigo.tokens ?? [] };
     }
+  }
+  if (versaoAnterior < 35) {
+    estado.ambiencia = normalizarAmbiencia(estado.ambiencia);
+    estado.schemaVersion = SCHEMA_VERSION;
   }
   return estado as Store;
 }
@@ -1449,6 +1460,30 @@ export const useStore = create<Store>()(
         set((s) => ({ midia: { ...s.midia, volume: Math.max(0, Math.min(1, volume)) } })),
       definirModoLoopMidia: (modoLoop) => set((s) => ({ midia: { ...s.midia, modoLoop } })),
 
+      adicionarFaixaAmbiencia: (nome, path, url) => {
+        const id = crypto.randomUUID();
+        set((s) => ({ ambiencia: { ...s.ambiencia, faixas: [...s.ambiencia.faixas,
+          { id, nome, path, url, ordem: s.ambiencia.faixas.length, criadoEm: new Date().toISOString() }],
+        } }));
+        return id;
+      },
+      removerFaixaAmbiencia: (id) => set((s) => ({ ambiencia: {
+        ...s.ambiencia, faixas: s.ambiencia.faixas.filter((f) => f.id !== id),
+        ...(s.ambiencia.faixaAtualId === id ? { faixaAtualId: null, tocando: false, posicaoSegundos: 0, atualizadoEm: new Date().toISOString() } : {}),
+      } })),
+      atualizarEstadoAmbiencia: (patch) => set((s) => {
+        const ambiencia = { ...s.ambiencia, ...patch, atualizadoEm: new Date().toISOString() };
+        if (!ambiencia.faixas.some((f) => f.id === ambiencia.faixaAtualId)) {
+          ambiencia.faixaAtualId = null;
+          ambiencia.tocando = false;
+        }
+        ambiencia.posicaoSegundos = Number.isFinite(ambiencia.posicaoSegundos) ? Math.max(0, ambiencia.posicaoSegundos) : 0;
+        return { ambiencia };
+      }),
+      definirVolumeAmbiencia: (volume) => {
+        if (Number.isFinite(volume)) set((s) => ({ ambiencia: { ...s.ambiencia, volume: Math.max(0, Math.min(1, volume)) } }));
+      },
+
       // Um slot por vez: definir sobrescreve o som que estiver naquela posição (é o
       // "substituir" da UI — não existe caminho separado pra trocar).
       definirSomSoundpad: (slot, nome, path, url) => {
@@ -1620,10 +1655,10 @@ export const useStore = create<Store>()(
       dispararBurstRuido: () => set({ ultimoBurstRuidoEm: Date.now() }),
 
       exportarJSON: () => {
-        const { fichas, fichaAtivaId, npcs, pistas, iniciativa, mapa, midia, soundpad, log, rollsLog, tabelas, config, sessaoPublica, sessaoPrivada, schemaVersion } =
+        const { fichas, fichaAtivaId, npcs, pistas, iniciativa, mapa, midia, ambiencia, soundpad, log, rollsLog, tabelas, config, sessaoPublica, sessaoPrivada, schemaVersion } =
           get();
         return JSON.stringify(
-          { schemaVersion, sessaoPublica, sessaoPrivada, fichas, fichaAtivaId, npcs, pistas, iniciativa, mapa, midia, soundpad, log, rollsLog, tabelas, config },
+          { schemaVersion, sessaoPublica, sessaoPrivada, fichas, fichaAtivaId, npcs, pistas, iniciativa, mapa, midia, ambiencia, soundpad, log, rollsLog, tabelas, config },
           null,
           2,
         );
@@ -1710,6 +1745,7 @@ export const useStore = create<Store>()(
             modoLoop: d.midia?.modoLoop ?? 'nenhum',
             volume: typeof d.midia?.volume === 'number' ? d.midia.volume : 0.8,
           },
+          ambiencia: { ...normalizarAmbiencia(d.ambiencia), tocando: false, posicaoSegundos: 0, atualizadoEm: new Date(0).toISOString() },
           soundpad: {
             sons: (d.soundpad?.sons ?? [])
               .filter((x) => Number.isInteger(x?.slot) && x.slot >= 0 && x.slot < QUANTIDADE_SLOTS_SOUNDPAD)

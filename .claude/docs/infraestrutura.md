@@ -87,8 +87,10 @@ Secrets, functions implantadas e dados são **independentes** entre os dois. A C
 
 ### 4.2 Banco
 
-- **40 migrações** em `supabase/migrations/` (`0001_…` a `0040_keepalive.sql`), aditivas
+- **41 migrações** em `supabase/migrations/` (`0001_…` a `0041_ambiencia.sql`), aditivas
   (`create table if not exists`, `create or replace function`) e **sem rollback automático**.
+  `0041` adiciona biblioteca e transporte de ambiência em uma coluna JSONB de `midia_estado`;
+  herda RLS, Realtime e reset existentes. Áudios continuam em `sfx/` no R2.
 - **25 tabelas**, todas em `public`: `characters_publico`, `characters_privado`, `npcs_publico`,
   `npcs_privado`, `sessao_publica`, `mapa_publico`, `mapas_biblioteca`, `fow_estado`,
   `iniciativa`, `rolls_publicas`, `rolls_log`, `log_publico`, `forced_queue`, `midia_estado`,

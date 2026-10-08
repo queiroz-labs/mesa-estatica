@@ -212,3 +212,56 @@ describe('iniciarSyncMidiaEstado — restart do loop individual sempre agenda pu
     expect(retomarPendenciasPersistidas('midia-estado-sync')).toContain('midia');
   });
 });
+
+describe('sincronização da ambiência', () => {
+  afterEach(() => { h.clienteAtual = null; vi.useRealTimers(); });
+
+  it('envia biblioteca, transporte e volume de ambiência junto do estado musical intacto', async () => {
+    vi.useFakeTimers();
+    useStore.setState(criarEstadoInicial());
+    const cliente = criarClienteMinimo();
+    const builder = cliente.from();
+    const upsert = vi.fn(() => Promise.resolve({ error: null }));
+    builder.upsert = upsert;
+    cliente.from = () => builder;
+    h.clienteAtual = cliente;
+    const parar = iniciarSyncMidiaEstado();
+    const id = useStore.getState().adicionarFaixaAmbiencia('chuva', 'sfx/chuva.wav', 'https://audio.test/chuva.wav');
+    useStore.getState().atualizarEstadoAmbiencia({ faixaAtualId: id, tocando: true });
+    useStore.getState().definirVolumeAmbiencia(0.3);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      tocando: false, volume: 0.8, ambiencia: expect.objectContaining({ faixaAtualId: id, tocando: true, volume: 0.3 }),
+    }));
+    parar();
+  });
+
+  it('resposta de push antigo não permite que eco remoto apague um pause mais novo', async () => {
+    vi.useFakeTimers();
+    useStore.setState(criarEstadoInicial());
+    const cliente = criarClienteMinimo();
+    const builder = cliente.from();
+    let concluir!: (r: { error: null }) => void;
+    builder.upsert = () => new Promise((resolve) => { concluir = resolve; });
+    cliente.from = () => builder;
+    const canal = cliente.channel();
+    let receber!: (payload: { new: unknown }) => void;
+    canal.on = (_: unknown, __: unknown, handler: typeof receber) => { receber = handler; return canal; };
+    cliente.channel = () => canal;
+    h.clienteAtual = cliente;
+    const parar = iniciarSyncMidiaEstado();
+    const id = useStore.getState().adicionarFaixaAmbiencia('chuva', 'sfx/chuva.wav', 'https://audio.test/chuva.wav');
+    useStore.getState().atualizarEstadoAmbiencia({ faixaAtualId: id, tocando: true });
+    await vi.advanceTimersByTimeAsync(150);
+    const antiga = useStore.getState().ambiencia;
+    useStore.getState().atualizarEstadoAmbiencia({ tocando: false, posicaoSegundos: 2 });
+    concluir({ error: null });
+    await Promise.resolve();
+    receber({ new: { id: 'midia', ...paraLinha(useStore.getState().midia), ambiencia: antiga } });
+    expect(useStore.getState().ambiencia.tocando).toBe(false);
+    await vi.advanceTimersByTimeAsync(150);
+    concluir({ error: null });
+    await Promise.resolve();
+    parar();
+  });
+});

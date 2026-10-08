@@ -1,6 +1,6 @@
 import type { Atributo } from '../rules/data/pericias';
 import { criarTabelasSeed } from '../rules/data/tabelasSeed';
-import type { EstadoFoW, EstadoGlobal, EstadoMidia, EstadoSoundpad, Ficha, GradeMapa, MapaBiblioteca, Npc, NpcAcao, Pista, SessaoPrivada, SessaoPublica } from './types';
+import type { EstadoAmbiencia, EstadoFoW, EstadoGlobal, EstadoMidia, EstadoSoundpad, Ficha, GradeMapa, MapaBiblioteca, Npc, NpcAcao, Pista, SessaoPrivada, SessaoPublica } from './types';
 
 export { criarTabelasSeed };
 
@@ -168,7 +168,11 @@ export function criarEstadoSoundpad(): EstadoSoundpad {
   return { sons: [], volume: 0.8, ultimoDisparo: null };
 }
 
-export const SCHEMA_VERSION = 34;
+export function criarEstadoAmbiencia(): EstadoAmbiencia {
+  return { faixas: [], faixaAtualId: null, tocando: false, posicaoSegundos: 0, atualizadoEm: new Date(0).toISOString(), volume: 0.5 };
+}
+
+export const SCHEMA_VERSION = 35;
 
 export function criarEstadoInicial(): EstadoGlobal {
   return {
@@ -182,6 +186,7 @@ export function criarEstadoInicial(): EstadoGlobal {
     iniciativa: [],
     mapa: { biblioteca: [], mapaAtivoId: null, tokens: [] },
     midia: criarEstadoMidia(),
+    ambiencia: criarEstadoAmbiencia(),
     soundpad: criarEstadoSoundpad(),
     log: [],
     rollsLog: [],

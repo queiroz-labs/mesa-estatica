@@ -1,13 +1,15 @@
 # ROADMAP — Mesa de Estática
 
 > Painel de mestre: ficha viva, motor de regras, dados 3D, mapa com tokens, app do jogador e sync via Supabase. Publicado no Cloudflare Pages.
-> Próxima sessão de jogo: **29/08/2026**. Docs: [regras](.claude/docs/regras.md) · [ficha](.claude/docs/ficha.md) · [arte](.claude/docs/arte.md) · [arquitetura](.claude/docs/arquitetura.md) · [multiplayer](mesa-estatica-multiplayer-completo.md) · [mídia/R2](.claude/docs/storage-r2.md) · [mcp servers](.claude/docs/mcp-servers.md).
+> Próxima sessão de jogo: **11/10/2026**. Docs: [regras](.claude/docs/regras.md) · [ficha](.claude/docs/ficha.md) · [arte](.claude/docs/arte.md) · [arquitetura](.claude/docs/arquitetura.md) · [multiplayer](mesa-estatica-multiplayer-completo.md) · [mídia/R2](.claude/docs/storage-r2.md) · [mcp servers](.claude/docs/mcp-servers.md).
 >
 > **Histórico detalhado fica no `git log`, não aqui.** Este arquivo guarda: estado atual, invariantes que não podem ser re-quebradas, e o que vem a seguir.
 
 ## Estado atual
 
 Tudo abaixo está implementado, testado e em produção salvo indicação em contrário.
+
+- **Ambiência (08/10)**: biblioteca de uploads própria, loop nativo, tocar/pausar/parar/seek e volume independente da música e do soundpad. Validada primeiro no dev com mestre e jogador (uploads R2, repetição, pausa, troca, volumes, mudo e recarga), backups antigos e 779 testes; migração aditiva `0041_ambiencia.sql` em `midia_estado`, sem alterar as permissões existentes.
 
 - **Ficha e regras**: ficha completa (`ficha.md`), motor em `src/rules/` puro e testado, indicadores mecânicos (Ferido, linha da Sanidade, Surto com perda ≥5, traumas), neuro-reguladores, dinheiro R$/P$ com câmbio, Kit de Investigação, export `.docx` + import via IA (sobrescreve por nome; via `.docx` automático por Edge Function/Groq+OpenRouter fallback — `.claude/docs/storage-r2.md` Parte 4 — ou manual copiar/colar).
 - **Dados**: 3D com colorsets por tipo de rolagem, fila de rolagens, fallback 2D sem WebGL, rolagem rápida em qualquer aba. Honesta por padrão; forçada só pela janela `#controle`.

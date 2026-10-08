@@ -434,6 +434,9 @@ export interface EstadoMidia {
   volume: number;
 }
 
+/** Biblioteca e transporte próprios. A faixa escolhida sempre repete em loop nativo. */
+export type EstadoAmbiencia = Omit<EstadoMidia, 'modoLoop'>;
+
 /** Um dos 12 botões do soundpad. `slot` (0–11) é a identidade de posição na grade. */
 export interface SomSoundpad {
   id: string;
@@ -486,6 +489,7 @@ export interface EstadoGlobal {
   iniciativa: EntradaIniciativa[];
   mapa: EstadoMapa;
   midia: EstadoMidia;
+  ambiencia: EstadoAmbiencia;
   soundpad: EstadoSoundpad;
   log: EntradaLog[];
   rollsLog: EntradaRoll[];

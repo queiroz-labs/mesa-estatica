@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabaseClient';
 import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
+import { normalizarAmbiencia } from '../state/ambiencia';
 import type { EstadoMidia, ModoLoopMidia } from '../state/types';
 import { criarDebouncePorChave } from './debounce';
 import { executarComRetentativa, marcarEmVoo, retomarPendenciasPersistidas } from './filaPendencias';
@@ -21,6 +22,7 @@ export interface Linha {
   modo_loop: ModoLoopMidia;
   atualizado_em: string;
   volume: number;
+  ambiencia?: unknown;
 }
 
 export type PatchEstadoMidia = Pick<EstadoMidia, 'faixaAtualId' | 'tocando' | 'posicaoSegundos' | 'modoLoop' | 'atualizadoEm' | 'volume'>;
@@ -66,16 +68,26 @@ export function iniciarSyncMidiaEstado(): () => void {
   // dentro da janela de debounce de um clique seguinte (troca de faixa, ajuste de volume)
   // reverte esse clique mais novo pro estado antigo.
   let pendente = false;
+  let revisaoLocal = 0;
+  let filaPush: Promise<{ error: unknown }> = Promise.resolve({ error: null });
 
   const push = () => {
-    const { faixaAtualId, tocando, posicaoSegundos, modoLoop, atualizadoEm, volume } = useStore.getState().midia;
-    return cliente
-      .from('midia_estado')
-      .upsert({ id: ID_MIDIA, ...paraLinha({ faixaAtualId, tocando, posicaoSegundos, modoLoop, atualizadoEm, volume }) })
-      .then((resultado) => {
-        pendente = false;
-        return resultado;
-      });
+    // Serializa escritas: uma requisição lenta anterior nunca termina no servidor depois
+    // de um pause/volume mais novo. Cada vez que chega à vez, relê o estado mais recente.
+    const proximo = filaPush.catch(() => ({ error: null })).then(() => {
+      const revisao = revisaoLocal;
+      const { faixaAtualId, tocando, posicaoSegundos, modoLoop, atualizadoEm, volume } = useStore.getState().midia;
+      return cliente
+        .from('midia_estado')
+        .upsert({ id: ID_MIDIA, ...paraLinha({ faixaAtualId, tocando, posicaoSegundos, modoLoop, atualizadoEm, volume }), ambiencia: useStore.getState().ambiencia })
+        .then((resultado) => {
+          // A resposta de uma escrita anterior não libera o eco sobre uma edição mais nova.
+          if (!resultado.error && revisao === revisaoLocal) pendente = false;
+          return resultado;
+        });
+    });
+    filaPush = proximo;
+    return proximo;
   };
 
   const agendarPush = criarDebouncePorChave<PatchEstadoMidia>(ATRASO_PUSH_MS, () => {
@@ -97,13 +109,15 @@ export function iniciarSyncMidiaEstado(): () => void {
       posicaoSegundos === anterior.posicaoSegundos &&
       modoLoop === anterior.modoLoop &&
       volume === anterior.volume &&
-      atualizadoEm === anterior.atualizadoEm
+      atualizadoEm === anterior.atualizadoEm &&
+      state.ambiencia === prevState.ambiencia
     ) {
       return;
     }
     // marca ANTES de agendar — sem isso, a janela do próprio debounce fica sem rede de
     // segurança nenhuma (ver `marcarEmVoo` em filaPendencias.ts).
     pendente = true;
+    revisaoLocal++;
     marcarEmVoo('midia-estado-sync', ID_MIDIA);
     agendarPush(ID_MIDIA, { faixaAtualId, tocando, posicaoSegundos, modoLoop, atualizadoEm, volume });
   });
@@ -118,7 +132,7 @@ export function iniciarSyncMidiaEstado(): () => void {
     if (pendente) return;
     aplicandoRemotoContagem++;
     try {
-      useStore.setState((s) => ({ midia: { ...s.midia, ...paraEstadoMidia(linha) } }));
+      useStore.setState((s) => ({ midia: { ...s.midia, ...paraEstadoMidia(linha) }, ambiencia: normalizarAmbiencia(linha.ambiencia) }));
     } finally {
       aplicandoRemotoContagem--;
     }

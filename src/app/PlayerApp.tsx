@@ -8,6 +8,7 @@ import CombateJogadorView from '../features/iniciativa/CombateJogadorView';
 import MapaJogadorView from '../features/mapa/MapaJogadorView';
 import MidiaJogadorView from '../features/midia/MidiaJogadorView';
 import MidiaPlayerJogador from '../features/midia/MidiaPlayerJogador';
+import AmbienciaPlayer from '../features/midia/AmbienciaPlayer';
 import SoundpadPlayer from '../features/midia/SoundpadPlayer';
 import NpcPublicaView from '../features/npcs/NpcPublicaView';
 import RuidoOverlay from '../features/ruido/RuidoOverlay';
@@ -237,6 +238,7 @@ export default function PlayerApp() {
           <SoundpadPlayer />
           <RolagemAoVivoPlayer ficha={minhaFicha ?? undefined} />
           <MidiaPlayerJogador />
+          <AmbienciaPlayer jogador />
         </div>
       </header>
       <DestaqueSuperior />

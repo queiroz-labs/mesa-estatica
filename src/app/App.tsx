@@ -5,6 +5,7 @@ import RolagemAoVivoPlayer from '../features/dados/RolagemAoVivoPlayer';
 import FichasTab from '../features/fichas/FichasTab';
 import MapaTab from '../features/mapa/MapaTab';
 import MidiaPlayerGM from '../features/midia/MidiaPlayerGM';
+import AmbienciaPlayer from '../features/midia/AmbienciaPlayer';
 import MidiaTab from '../features/midia/MidiaTab';
 import SoundpadPlayer from '../features/midia/SoundpadPlayer';
 import GateOverlay from '../features/multiplayer/GateOverlay';
@@ -452,6 +453,7 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <MidiaPlayerGM />
+          <AmbienciaPlayer />
           <SoundpadPlayer />
           <RolagemAoVivoPlayer verProprias />
           <VinculoMestre />

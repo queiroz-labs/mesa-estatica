@@ -36,6 +36,14 @@ Para multiplayer, copie `.env.example` para `.env` e preencha `VITE_SUPABASE_URL
 
 Ignorados enquanto o foco está num campo de texto.
 
+## Música, ambiência e soundpad
+
+Na aba **Mídia**, o mestre controla música, ambiência e efeitos com volumes separados.
+**Enviar ambiência** adiciona áudios como chuva ou vento à biblioteca própria; escolher um som
+inicia o loop contínuo. Tocar, pausar, parar ou ajustar a ambiência não reduz o volume da música.
+O soundpad continua disparando efeitos pontuais. Os jogadores usam **habilitar áudio** uma vez
+por página quando o navegador pedir; **mudo** silencia os três canais só para quem clicou.
+
 ## Transferindo o estado da mesa
 
 O estado **não** viaja com o git: exporte pelo botão **exportar** (JSON), leve o arquivo, importe na máquina nova. Faça isso antes de cada sessão — confie no papel, não na nuvem.
