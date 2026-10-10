@@ -22,8 +22,8 @@ Regra de uso: **ciano = rede/sistema/corporativo** (P$, testes, chrome). **Âmba
 
 | Papel | Fonte | Uso |
 |---|---|---|
-| Display / headers / chrome de UI | **Barlow Condensed** (600/700, caps, tracking largo) | títulos de aba, labels de sistema, botões — cara de sinalização corporativa/crachá |
-| Corpo / formulários | **Barlow** (400/500) | campos da ficha, textos correntes |
+| Display / headers / chrome de UI | **IBM Plex Sans Condensed** (600/700, caps, tracking largo) | títulos de aba, labels de sistema, botões — identificação institucional, contratos e crachás |
+| Corpo / formulários | **IBM Plex Sans** (400/500) | campos da ficha, textos correntes — leitura contínua com tom técnico e burocrático |
 | Terminal / analógico | **IBM Plex Mono** (400/600) | log da sessão, anotações do caso, valores de dados, timestamps, dinheiro |
 
 Proibido: serifa decorativa, fontes "medievais", Inter/Roboto por preguiça no display.

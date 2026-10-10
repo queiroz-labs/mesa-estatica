@@ -26,8 +26,8 @@
   --ruido-dim: #5c2d29;
 
   /* tipografia */
-  --font-display: 'Barlow Condensed', sans-serif;
-  --font-body: 'Barlow', sans-serif;
+  --font-display: 'IBM Plex Sans Condensed', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
   /* Controles: dois tamanhos, com alvos maiores em telas de toque. */
