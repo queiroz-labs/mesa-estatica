@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { criarEstadoMidia, criarEstadoSoundpad } from '../../state/factories';
+import { criarEstadoAmbiencia, criarEstadoMidia, criarEstadoSoundpad } from '../../state/factories';
 import MidiaPlayerGM from './MidiaPlayerGM';
 import MidiaPlayerJogador from './MidiaPlayerJogador';
 import SoundpadPlayer from './SoundpadPlayer';
+import MidiaJogadorView from './MidiaJogadorView';
+import { CamadaAmbienciaPlayer } from './AmbienciaPlayer';
 
 // Os testes executam os efeitos de playback com um elemento de mídia controlado.
 // Promessas e timers são independentes para reproduzir mudanças enquanto play está pendente.
@@ -18,6 +21,7 @@ const ambiente = vi.hoisted(() => ({
   definirHabilitado: vi.fn(),
   definirDuracao: vi.fn(),
   listeners: new Set<(s: any) => void>(),
+  retomadas: new Set<() => void>(),
 }));
 
 vi.mock('react', async (original) => ({
@@ -45,7 +49,10 @@ vi.mock('../../state/soundpadUiStore', () => ({
 }));
 vi.mock('../../state/midiaUiStore', () => ({ useMidiaUiStore: (selecionar: (s: any) => any) => selecionar({ definirDuracao: ambiente.definirDuracao }) }));
 vi.mock('../../state/audioJogadorStore', () => ({
-  useAudioJogadorStore: (selecionar: (s: any) => any) => selecionar({ habilitado: ambiente.habilitado, definirHabilitado: ambiente.definirHabilitado }),
+  useAudioJogadorStore: Object.assign((selecionar: (s: any) => any) => selecionar({ habilitado: ambiente.habilitado, definirHabilitado: ambiente.definirHabilitado }), {
+    getState: () => ({ habilitado: ambiente.habilitado, definirHabilitado: ambiente.definirHabilitado }),
+  }),
+  registrarRetomadaAudio: (fn: () => void) => { ambiente.retomadas.add(fn); return () => { ambiente.retomadas.delete(fn); }; },
   habilitarAudioJogador: () => { ambiente.habilitado = true; },
 }));
 
@@ -61,6 +68,7 @@ function audioFalso() {
     pause: vi.fn(() => { audio.paused = true; }),
     play: vi.fn(() => { audio.paused = false; return Promise.resolve(); }),
     addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
   };
   return audio;
 }
@@ -91,12 +99,14 @@ beforeEach(() => {
   ambiente.refs = [];
   ambiente.efeitos = [];
   ambiente.listeners.clear();
+  ambiente.retomadas.clear();
   ambiente.habilitado = true;
   ambiente.som.slotsTocando = new Set();
   ambiente.som.mudo = false;
   ambiente.estado = {
     midia: { ...criarEstadoMidia(), faixaAtualId: 'faixa', tocando: true, atualizadoEm: new Date().toISOString(), faixas: [{ id: 'faixa', nome: 'chuva.mp3', url: 'https://example.test/chuva.mp3', path: 'chuva.mp3', ordem: 0, criadoEm: new Date().toISOString() }] },
     soundpad: criarEstadoSoundpad(),
+    ambiencia: criarEstadoAmbiencia(),
     atualizarEstadoMidia: vi.fn(),
   };
 });
@@ -106,6 +116,80 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+});
+
+describe('nomes de áudio na interface do jogador', () => {
+  it('repete música individual nativamente no jogador, mas deixa playlist seguir o mestre', () => {
+    atualizarMidia({ modoLoop: 'faixa' });
+    expect((renderizar(MidiaPlayerJogador, audioFalso())!.props as any).children[0].props.loop).toBe(true);
+    atualizarMidia({ modoLoop: 'lista' });
+    expect((renderizar(MidiaPlayerJogador)!.props as any).children[0].props.loop).toBe(false);
+  });
+  it('não renderiza títulos no cabeçalho ou aba, inclusive após troca e nova hidratação', () => {
+    const audio = audioFalso();
+    for (const [i, nome] of ['SPOILER_CHEFE', 'SPOILER_TRAICAO', 'SPOILER_RECONEXAO'].entries()) {
+      const faixa = { ...ambiente.estado.midia.faixas[0], id: `faixa-${i}`, nome };
+      atualizarMidia({ faixas: [faixa], faixaAtualId: faixa.id });
+      ambiente.estado.ambiencia = { ...criarEstadoAmbiencia(), faixas: [{ ...faixa, nome: 'SPOILER_AMBIENCIA' }], faixaAtualId: faixa.id, tocando: true };
+      const cabecalho = renderToStaticMarkup(renderizar(MidiaPlayerJogador, audio)!);
+      const aba = renderToStaticMarkup(MidiaJogadorView());
+      expect(cabecalho + aba).not.toContain('SPOILER');
+      expect(cabecalho).toContain('música da mesa');
+      expect(aba).toContain('ambiência em loop');
+      expect(cabecalho).toContain('silenciar som para você');
+      expect(audio.src).toBe(faixa.url);
+      expect(audio.paused).toBe(false);
+    }
+  });
+
+  it('mantém estados pausado e vazio sem expor título em atributos acessíveis', () => {
+    const audio = audioFalso();
+    atualizarMidia({ tocando: false, faixas: [{ ...ambiente.estado.midia.faixas[0], nome: 'SPOILER_PAUSADO' }] });
+    let html = renderToStaticMarkup(renderizar(MidiaPlayerJogador, audio)!) + renderToStaticMarkup(MidiaJogadorView());
+    expect(html).not.toContain('SPOILER');
+    expect(html).toContain('música pausada');
+    atualizarMidia({ faixaAtualId: null });
+    html = renderToStaticMarkup(renderizar(MidiaPlayerJogador, audio)!) + renderToStaticMarkup(MidiaJogadorView());
+    expect(html).not.toContain('SPOILER');
+    expect(html).toContain('sem áudio tocando');
+    expect(html).toContain('nada tocando no momento.');
+  });
+});
+
+describe('player de camada de ambiência', () => {
+  const componente = () => CamadaAmbienciaPlayer({ jogador: true, camadaId: 'extra' });
+  beforeEach(() => {
+    ambiente.estado.ambiencia = { ...criarEstadoAmbiencia(), faixas: ambiente.estado.midia.faixas,
+      camadas: [{ id: 'extra', faixaAtualId: 'faixa', tocando: true, posicaoSegundos: 0, atualizadoEm: new Date().toISOString(), volume: 0.3 }] };
+  });
+  it('mudar outro canal não reinicia áudio nem faz seek nesta camada', () => {
+    const audio = audioFalso();
+    renderizar(componente, audio);
+    audio.currentTime = 8;
+    ambiente.estado.ambiencia = { ...ambiente.estado.ambiencia, volume: 0.1 };
+    renderizar(componente, audio);
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.currentTime).toBe(8);
+    expect(audio.volume).toBe(0.3);
+  });
+  it('volume próprio e mudo local não reposicionam nem retomam áudio', () => {
+    const audio = audioFalso(); renderizar(componente, audio); audio.currentTime = 9;
+    ambiente.estado.ambiencia.camadas[0] = { ...ambiente.estado.ambiencia.camadas[0], volume: 0.15 };
+    ambiente.som.mudo = true; renderizar(componente, audio);
+    expect(audio.volume).toBe(0.15); expect(audio.muted).toBe(true); expect(audio.currentTime).toBe(9);
+    expect(audio.play).toHaveBeenCalledOnce();
+  });
+  it('desmontagem para e descarrega áudio, remove listener/retomada e ignora resposta atrasada', async () => {
+    const audio = audioFalso(); let concluir!: () => void;
+    audio.play.mockImplementation(() => { audio.paused = false; return new Promise<void>((resolve) => { concluir = resolve; }); });
+    renderizar(componente, audio);
+    expect(ambiente.retomadas.size).toBe(1);
+    for (const efeito of ambiente.efeitos) efeito.limpar?.();
+    concluir(); await Promise.resolve();
+    expect(audio.paused).toBe(true); expect(audio.src).toBe(''); expect(audio.load).toHaveBeenCalledOnce();
+    expect(audio.removeEventListener).toHaveBeenCalledWith('loadedmetadata', expect.any(Function));
+    expect(ambiente.retomadas.size).toBe(0);
+  });
 });
 
 describe.each([['mestre', MidiaPlayerGM], ['jogador', MidiaPlayerJogador]] as const)('música do %s', (_nome, componente) => {

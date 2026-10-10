@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { Ficha } from '../../state/types';
-import { exportarFichaDocx } from './exportarFichaDocx';
 import AnotacoesSection from './sections/AnotacoesSection';
 import ArmasSection from './sections/ArmasSection';
 import AtributosDerivadosSection from './sections/AtributosDerivadosSection';
@@ -25,6 +24,7 @@ export default function FichaEditor({ ficha, souMestre }: { ficha: Ficha; souMes
     setExportando(true);
     setErroExportacao(false);
     try {
+      const { exportarFichaDocx } = await import('./exportarFichaDocx');
       await exportarFichaDocx(ficha, basePV);
     } catch {
       setErroExportacao(true);

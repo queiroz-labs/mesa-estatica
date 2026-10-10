@@ -229,9 +229,12 @@ describe('sincronização da ambiência', () => {
     const id = useStore.getState().adicionarFaixaAmbiencia('chuva', 'sfx/chuva.wav', 'https://audio.test/chuva.wav');
     useStore.getState().atualizarEstadoAmbiencia({ faixaAtualId: id, tocando: true });
     useStore.getState().definirVolumeAmbiencia(0.3);
+    const camada = useStore.getState().adicionarCamadaAmbiencia();
+    useStore.getState().atualizarCamadaAmbiencia(camada, { faixaAtualId: id, tocando: true, volume: 0.15 });
     await vi.advanceTimersByTimeAsync(200);
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
-      tocando: false, volume: 0.8, ambiencia: expect.objectContaining({ faixaAtualId: id, tocando: true, volume: 0.3 }),
+      tocando: false, volume: 0.8, ambiencia: expect.objectContaining({ faixaAtualId: id, tocando: true, volume: 0.3,
+        camadas: [expect.objectContaining({ id: camada, faixaAtualId: id, tocando: true, volume: 0.15 })] }),
     }));
     parar();
   });

@@ -196,6 +196,7 @@
   align-items: center;
   justify-content: center;
   color: var(--ink);
+  opacity: 0.65;
   pointer-events: none;
 }
 

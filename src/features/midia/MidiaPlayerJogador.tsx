@@ -143,7 +143,7 @@ export default function MidiaPlayerJogador() {
 
   return (
     <>
-      <audio ref={audioRef} onLoadedMetadata={(e) => posicionarMidia(e.currentTarget, useStore.getState().midia)} />
+      <audio ref={audioRef} loop={midia.modoLoop === 'faixa'} onLoadedMetadata={(e) => posicionarMidia(e.currentTarget, useStore.getState().midia)} />
       <div
         className="mono"
         style={{
@@ -162,7 +162,7 @@ export default function MidiaPlayerJogador() {
           <>
             <Icone nome="musica" style={{ color: 'var(--rede)' }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {faixaAtual ? faixaAtual.nome : 'sem áudio tocando'}
+              {faixaAtual ? (midia.tocando ? 'música da mesa' : 'música pausada') : 'sem áudio tocando'}
             </span>
             <button className="icone-botao" onClick={() => definirMudo(!mudo)} title={mudo ? 'ativar som' : 'mudo (só pra você)'} aria-label={mudo ? 'ativar som para você' : 'silenciar som para você'} aria-pressed={!mudo} style={{ fontSize: '12px' }}>
               {mudo ? 'mudo' : 'som'}

@@ -72,60 +72,82 @@ export function useMinhaFicha(): { carregando: boolean; possuiFicha: boolean } {
     // Chamando aqui, síncrono, cleanup1 sempre alcança a instância certa: zero janela.
     const pararSync = iniciarSyncFichas();
     let cancelado = false;
-
-    (async () => {
-      await iniciarAuthMultiplayer();
+    let buscando = false;
+    let concluido = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const tentarNovamente = () => {
       if (cancelado) return;
+      clearTimeout(retry);
+      retry = setTimeout(() => { void carregar(); }, 5000);
+    };
 
-      const { data: userData } = await cliente.auth.getUser();
-      if (cancelado || !userData.user) {
-        setCarregando(false);
-        return;
+    const carregar = async () => {
+      if (cancelado || buscando || concluido) return;
+      buscando = true;
+      clearTimeout(retry);
+      try {
+        const autenticado = await iniciarAuthMultiplayer();
+        if (cancelado) return;
+        if (!autenticado) { tentarNovamente(); return; }
+
+        const { data: userData } = await cliente.auth.getUser();
+        if (cancelado) return;
+        if (!userData.user) { tentarNovamente(); return; }
+
+        const ownerToken = new URLSearchParams(window.location.search).get('t');
+        const consultaPrivado = cliente.from('characters_privado').select('id, dados');
+        const { data: privado, error: erroPrivado } = ownerToken
+          ? await consultaPrivado.eq('owner_token', ownerToken).maybeSingle()
+          : await consultaPrivado.eq('auth_uid', userData.user.id).maybeSingle();
+        if (cancelado) return;
+        if (erroPrivado) { tentarNovamente(); return; }
+        if (!privado) {
+          setCarregando(false);
+          return;
+        }
+
+        const { id, dados } = privado as LinhaPrivado;
+        const { data: publico, error: erroPublico } = await cliente.from('characters_publico').select('*').eq('id', id).maybeSingle();
+        if (cancelado) return;
+        if (erroPublico || !publico) { tentarNovamente(); return; }
+
+        const linhaPublico = publico as LinhaPublico;
+        const basePVImplicito = linhaPublico.pv_maximo - 5 * dados.atributos.vigor;
+        const basePV: BasePV = (BASES_PV as readonly number[]).includes(basePVImplicito)
+          ? (basePVImplicito as BasePV)
+          : 20;
+
+        // Backward-compatibilidade com dados antigos em characters_privado.dados que não
+        // têm pvAtual/surtosAtivos (antes da mudança em FichaPrivadaDados): mescla da
+        // linha pública. Mesmo padrão de fichasSync.ts.
+        const ficha = montarFicha(paraFichaPublica(linhaPublico), {
+          ...dados,
+          pvAtual: linhaPublico.pv_atual,
+          surtosAtivos: linhaPublico.surtos_ativos,
+        });
+        useStore.setState((s) => ({
+          fichas: [ficha],
+          fichaAtivaId: ficha.id,
+          config: { ...s.config, basePV },
+        }));
+        setPossuiFicha(true);
+        concluido = true;
+      } catch (erro) {
+        console.error('[multiplayer] carregar ficha falhou', erro);
+        tentarNovamente();
+      } finally {
+        buscando = false;
+        if (!cancelado) setCarregando(false);
       }
-
-      const ownerToken = new URLSearchParams(window.location.search).get('t');
-      const consultaPrivado = cliente.from('characters_privado').select('id, dados');
-      const { data: privado } = ownerToken
-        ? await consultaPrivado.eq('owner_token', ownerToken).maybeSingle()
-        : await consultaPrivado.eq('auth_uid', userData.user.id).maybeSingle();
-      if (cancelado) return;
-      if (!privado) {
-        setCarregando(false);
-        return;
-      }
-
-      const { id, dados } = privado as LinhaPrivado;
-      const { data: publico } = await cliente.from('characters_publico').select('*').eq('id', id).maybeSingle();
-      if (cancelado || !publico) {
-        setCarregando(false);
-        return;
-      }
-
-      const linhaPublico = publico as LinhaPublico;
-      const basePVImplicito = linhaPublico.pv_maximo - 5 * dados.atributos.vigor;
-      const basePV: BasePV = (BASES_PV as readonly number[]).includes(basePVImplicito)
-        ? (basePVImplicito as BasePV)
-        : 20;
-
-      // Backward-compatibilidade com dados antigos em characters_privado.dados que não
-      // têm pvAtual/surtosAtivos (antes da mudança em FichaPrivadaDados): mescla da
-      // linha pública. Mesmo padrão de fichasSync.ts.
-      const ficha = montarFicha(paraFichaPublica(linhaPublico), {
-        ...dados,
-        pvAtual: linhaPublico.pv_atual,
-        surtosAtivos: linhaPublico.surtos_ativos,
-      });
-      useStore.setState((s) => ({
-        fichas: [ficha],
-        fichaAtivaId: ficha.id,
-        config: { ...s.config, basePV },
-      }));
-      setPossuiFicha(true);
-      setCarregando(false);
-    })();
+    };
+    const aoReconectar = () => { void carregar(); };
+    window.addEventListener('online', aoReconectar);
+    void carregar();
 
     return () => {
       cancelado = true;
+      clearTimeout(retry);
+      window.removeEventListener('online', aoReconectar);
       pararSync();
     };
   }, []);

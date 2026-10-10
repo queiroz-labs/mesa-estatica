@@ -4,8 +4,8 @@
  * uma ficha qualquer (`traumas.map(...)` numa string, `Object.entries(pericias)` num número),
  * sem nenhum contexto de que a causa foi um JSON malformado importado minutos antes.
  *
- * Deliberadamente não é uma validação de schema completa (não é zod) — só os campos que a UI
- * itera (`.map`) ou trata como objeto sem checar o tipo antes. Roda depois da checagem de
+ * Deliberadamente não é uma validação de schema completa (não é zod) — confere coleções e
+ * campos de texto/números consumidos pela UI. Roda depois da checagem de
  * chaves obrigatórias (`importarJSON`, store.ts) e antes de `normalizar` — se achar problema,
  * a importação nem chega a mexer no estado.
  */
@@ -39,6 +39,12 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
   const textar = (caminho: string, valor: unknown) => {
     if (valor !== undefined && typeof valor !== 'string') problemas.push(`"${caminho}" deveria ser texto`);
   };
+  const numerar = (caminho: string, valor: unknown) => {
+    if (valor !== undefined && (typeof valor !== 'number' || !Number.isFinite(valor))) problemas.push(`"${caminho}" deveria ser número finito`);
+  };
+  const textos = (item: Record<string, unknown>, caminho: string, campos: string[]) => {
+    for (const campo of campos) textar(`${caminho}.${campo}`, item[campo]);
+  };
   const registro = (valor: unknown): valor is Record<string, unknown> =>
     !!valor && typeof valor === 'object' && !Array.isArray(valor);
   const visitarLista = (caminho: string, valor: unknown, visitar: (item: Record<string, unknown>, caminho: string) => void) => {
@@ -56,7 +62,10 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     listar('sessaoPrivada.selecionadosIniciativa', dados.sessaoPrivada.selecionadosIniciativa);
     objetar('sessaoPrivada.estatisticas', dados.sessaoPrivada.estatisticas);
   }
-  listarDeObjetos('rollsLog', dados.rollsLog);
+  visitarLista('rollsLog', dados.rollsLog, (item, caminho) => {
+    textos(item, caminho, ['id', 'timestamp', 'origem', 'formula', 'visibilidade']);
+    for (const campo of ['total', 'bruto']) numerar(`${caminho}.${campo}`, item[campo]);
+  });
   visitarLista('pistas', dados.pistas, (item, caminho) => {
     for (const campo of ['texto', 'ligadoA']) {
       if (typeof item[campo] !== 'string') problemas.push(`"${caminho}.${campo}" deveria ser texto`);
@@ -75,13 +84,26 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     visitarLista('ambiencia.faixas', dados.ambiencia.faixas, (item, caminho) => {
       for (const campo of ['id', 'nome', 'path', 'url']) textar(`${caminho}.${campo}`, item[campo]);
     });
+    visitarLista('ambiencia.camadas', dados.ambiencia.camadas, (item, caminho) => {
+      textar(`${caminho}.id`, item.id);
+      if (item.faixaAtualId !== null) textar(`${caminho}.faixaAtualId`, item.faixaAtualId);
+      for (const campo of ['volume', 'posicaoSegundos']) {
+        if (item[campo] !== undefined && (typeof item[campo] !== 'number' || !Number.isFinite(item[campo]))) problemas.push(`"${caminho}.${campo}" deveria ser número finito`);
+      }
+    });
   }
   visitarLista('tabelas', dados.tabelas, (item, caminho) => listarDeObjetos(`${caminho}.entradas`, item.entradas));
 
   listar('fichas', dados.fichas);
   listar('npcs', dados.npcs);
-  listarDeObjetos('iniciativa', dados.iniciativa);
-  listarDeObjetos('log', dados.log);
+  visitarLista('iniciativa', dados.iniciativa, (item, caminho) => {
+    textos(item, caminho, ['id', 'participanteId', 'tipo', 'nome']);
+    for (const campo of ['valor', 'd20', 'agilidade']) numerar(`${caminho}.${campo}`, item[campo]);
+  });
+  visitarLista('log', dados.log, (item, caminho) => {
+    textos(item, caminho, ['id', 'timestamp', 'tipo', 'texto', 'visibilidade']);
+    numerar(`${caminho}.rodada`, item.rodada);
+  });
   objetar('mapa', dados.mapa);
   objetar('config', dados.config);
 
@@ -92,12 +114,24 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
         return;
       }
       const ficha = f as Record<string, unknown>;
-      textar(`fichas[${i}].nome`, ficha.nome);
+      textos(ficha, `fichas[${i}]`, ['id', 'nome', 'jogador', 'corVisual', 'antecedenteCustom', 'motivo', 'perguntaQueTeDefine', 'respostaPergunta', 'gancho', 'kitAntecedente', 'contatoOuRecurso', 'outrosItens', 'anotacoes', 'observacaoCombate']);
       objetar(`fichas[${i}].atributos`, ficha.atributos);
       objetar(`fichas[${i}].pericias`, ficha.pericias);
       for (const campo of ['traumas', 'armas', 'vinculos', 'kitInvestigacao', 'reguladores', 'surtosAtivos'] as const) {
         listarDeObjetos(`fichas[${i}].${campo}`, ficha[campo]);
       }
+      for (const [campo, campos] of Object.entries({
+        traumas: ['id', 'nome', 'gatilho', 'resposta'], armas: ['id', 'nome', 'bonusAtaque', 'dano', 'alcance', 'nota'],
+        vinculos: ['id', 'quemOuOque', 'frase'], kitInvestigacao: ['id', 'nome', 'nota'], reguladores: ['id', 'data', 'tipo'],
+      })) {
+        if (Array.isArray(ficha[campo])) ficha[campo].forEach((item, j) => {
+          if (registro(item)) textos(item, `fichas[${i}].${campo}[${j}]`, campos);
+        });
+      }
+      for (const campo of ['atributos', 'pericias']) {
+        if (registro(ficha[campo])) for (const [nome, valor] of Object.entries(ficha[campo])) numerar(`fichas[${i}].${campo}.${nome}`, valor);
+      }
+      for (const campo of ['pvAtual', 'sanidadeAtual', 'determinacao', 'dinheiroReal', 'dinheiroPonto', 'acessos', 'equipamentoModificadorDefesa']) numerar(`fichas[${i}].${campo}`, ficha[campo]);
     });
   }
 
@@ -108,8 +142,12 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
         return;
       }
       const npc = n as Record<string, unknown>;
-      textar(`npcs[${i}].nome`, npc.nome);
-      listarDeObjetos(`npcs[${i}].acoes`, npc.acoes);
+      textos(npc, `npcs[${i}]`, ['id', 'nome', 'corVisual', 'notas', 'notasMestre', 'categoria']);
+      for (const campo of ['pvAtual', 'pvMaximo', 'defesa', 'agilidade']) numerar(`npcs[${i}].${campo}`, npc[campo]);
+      visitarLista(`npcs[${i}].acoes`, npc.acoes, (item, caminho) => {
+        textos(item, caminho, ['id', 'nome', 'dano']);
+        numerar(`${caminho}.bonus`, item.bonus);
+      });
     });
   }
 

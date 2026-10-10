@@ -4,6 +4,22 @@ import { useStore } from './store';
 
 beforeEach(() => { useStore.setState(criarEstadoInicial()); });
 it.each([
+  ['log', { id: 'qa', texto: { invalido: true } }],
+  ['npcs', { id: 'qa', acoes: [{ nome: { invalido: true } }] }],
+  ['npcs', { id: 'qa', acoes: [{ nome: 'ataque', bonus: 'quebrado' }] }],
+  ['fichas', { id: 'qa', armas: [{ nome: { invalido: true } }] }],
+  ['fichas', { id: 'qa', atributos: { vigor: 'quebrado' } }],
+  ['iniciativa', { id: 'qa', nome: {}, valor: 12 }],
+  ['rollsLog', { id: 'qa', formula: {}, total: 12 }],
+])('rejeita campos renderizados inválidos em %s sem persistir sobre a mesa válida', (campo, item) => {
+  const antes = useStore.getState().exportarJSON();
+  const dados = JSON.parse(antes);
+  dados[campo as string] = [item];
+  expect(() => useStore.getState().importarJSON(JSON.stringify(dados))).toThrow('formato inválido');
+  expect(useStore.getState().exportarJSON()).toBe(antes);
+  expect(() => useStore.getState().importarJSON(antes)).not.toThrow();
+});
+it.each([
   ['texto', 123], ['ligadoA', {}], ['status', 'desconhecido'],
 ])('pista com %s inválido é recusada antes de substituir a mesa', (campo, valor) => {
   useStore.getState().adicionarPista();

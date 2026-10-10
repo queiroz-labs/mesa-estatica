@@ -14,7 +14,7 @@ export const CHAVE_TOKEN_MESTRE = 'estatica-gm-token';
 // outra: o jogador liga, mas a leitura seguinte de `characters_privado` (filtrada por
 // `auth.uid()`) não bate com nada — "link inválido ou ficha ainda não vinculada", mesmo com
 // o link certo. Um único `Promise` em voo garante que todo mundo espera a MESMA execução.
-let promessaEmVoo: Promise<void> | null = null;
+let promessaEmVoo: Promise<boolean> | null = null;
 
 /**
  * Garante uma sessão anônima (Supabase Auth) e, se a URL trouxer `?t=` (owner_token
@@ -23,21 +23,31 @@ let promessaEmVoo: Promise<void> | null = null;
  * novo a cada boot, e seguro chamar em paralelo dentro do mesmo boot (ver `promessaEmVoo`
  * acima); sem env vars do Supabase, vira no-op (app roda 100% local).
  */
-export function iniciarAuthMultiplayer(): Promise<void> {
-  if (!promessaEmVoo) promessaEmVoo = executar();
+export function iniciarAuthMultiplayer(): Promise<boolean> {
+  if (!promessaEmVoo) {
+    promessaEmVoo = executar().catch((erro: unknown) => {
+      console.error('[multiplayer] autenticação falhou', erro);
+      return false;
+    }).then((ok) => {
+      // Preserva o bootstrap bem-sucedido, mas permite recuperar uma falha de rede.
+      if (!ok) promessaEmVoo = null;
+      return ok;
+    });
+  }
   return promessaEmVoo;
 }
 
-async function executar(): Promise<void> {
+async function executar(): Promise<boolean> {
   const cliente = supabase;
-  if (!cliente) return;
+  if (!cliente) return true;
 
-  const { data: sessaoAtual } = await cliente.auth.getSession();
+  const { data: sessaoAtual, error: erroSessao } = await cliente.auth.getSession();
+  if (erroSessao) return false;
   if (!sessaoAtual.session) {
     const { error } = await cliente.auth.signInAnonymously();
     if (error) {
       console.error('[multiplayer] sign-in anônimo falhou', error);
-      return;
+      return false;
     }
   }
 
@@ -47,12 +57,19 @@ async function executar(): Promise<void> {
 
   if (ownerToken) {
     const { error } = await cliente.functions.invoke('vincular-jogador', { body: { owner_token: ownerToken } });
-    if (error) console.error('[multiplayer] vincular-jogador falhou', error);
+    if (error) {
+      console.error('[multiplayer] vincular-jogador falhou', error);
+      return false;
+    }
   }
   if (gmToken) {
     const { error } = await cliente.functions.invoke('vincular-mestre', { body: { gm_token: gmToken } });
-    if (error) console.error('[multiplayer] vincular-mestre falhou', error);
+    if (error) {
+      console.error('[multiplayer] vincular-mestre falhou', error);
+      return false;
+    }
   }
+  return true;
 }
 
 async function extrairErroFuncao(error: unknown): Promise<string> {

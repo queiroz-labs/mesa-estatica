@@ -1,19 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { deletarR2, isUrlSupabaseStorage, uploadR2 } from '../../multiplayer/uploadR2';
-import { useAmbienciaUiStore } from '../../state/ambienciaUiStore';
 import { useStore } from '../../state/store';
 import type { FaixaMidia } from '../../state/types';
-import ControleVolume from './ControleVolume';
+import CamadaAmbienciaControles from './CamadaAmbienciaControles';
+import { CAMADA_PRINCIPAL } from '../../state/ambiencia';
 import Icone from '../../components/Icone';
 
 export default function AmbienciaPanel() {
   const ambiencia = useStore((s) => s.ambiencia);
-  const duracao = useAmbienciaUiStore((s) => s.duracaoSegundos);
-  const posicao = useAmbienciaUiStore((s) => s.posicaoSegundos);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const faixa = ambiencia.faixas.find((f) => f.id === ambiencia.faixaAtualId);
 
   const enviar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = e.target.files?.[0];
@@ -34,11 +31,6 @@ export default function AmbienciaPanel() {
   };
 
   const selecionar = (id: string) => useStore.getState().atualizarEstadoAmbiencia({ faixaAtualId: id, tocando: true, posicaoSegundos: 0 });
-  const alternar = () => {
-    if (!faixa) {
-      if (ambiencia.faixas[0]) selecionar(ambiencia.faixas[0].id);
-    } else useStore.getState().atualizarEstadoAmbiencia({ tocando: !ambiencia.tocando, posicaoSegundos: posicao });
-  };
   const excluir = async (som: FaixaMidia) => {
     if (!window.confirm(`excluir ambiência "${som.nome}"?`)) return;
     useStore.getState().removerFaixaAmbiencia(som.id);
@@ -59,25 +51,10 @@ export default function AmbienciaPanel() {
       </label>
     </div>
     <p className="vazio" style={{ margin: 0 }}>chuva, vento e outros sons em loop contínuo, junto com a música.</p>
-    <label className="label" htmlFor="ambiencia-faixa">som de ambiência</label>
-    <select id="ambiencia-faixa" value={ambiencia.faixaAtualId ?? ''} onChange={(e) => {
-      if (e.target.value) selecionar(e.target.value);
-      else useStore.getState().atualizarEstadoAmbiencia({ faixaAtualId: null, tocando: false, posicaoSegundos: 0 });
-    }}>
-      <option value="">nenhuma ambiência selecionada</option>
-      {ambiencia.faixas.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-    </select>
-    <input type="range" aria-label="posição da ambiência" min={0} max={duracao || 0} step={0.1}
-      value={Math.min(posicao, duracao || 0)} disabled={!faixa || !duracao}
-      onChange={(e) => useStore.getState().atualizarEstadoAmbiencia({ posicaoSegundos: Number(e.target.value) })} />
-    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-      <button className="acento" onClick={alternar} disabled={!ambiencia.faixas.length}>{ambiencia.tocando ? 'pausar ambiência' : 'tocar ambiência'}</button>
-      <button disabled={!faixa} onClick={() => useStore.getState().atualizarEstadoAmbiencia({ tocando: false, posicaoSegundos: 0 })}>parar ambiência</button>
-      <span className="mono" style={{ fontSize: 12, color: 'var(--ink-dim)' }}>loop contínuo</span>
-    </div>
-    <ControleVolume id="ambiencia-volume" nome="ambiência (todos)" volume={ambiencia.volume}
-      onChange={(volume) => useStore.getState().definirVolumeAmbiencia(volume)}
-      title="volume da ambiência — independente da música, vale para todos" />
+    <CamadaAmbienciaControles id={CAMADA_PRINCIPAL} numero={1} />
+    {ambiencia.camadas?.map((c, i) => <CamadaAmbienciaControles key={c.id} id={c.id} numero={i + 2} />)}
+    <button type="button" onClick={() => useStore.getState().adicionarCamadaAmbiencia()} aria-label="adicionar camada de ambiência">+ adicionar ambiência</button>
+    <p className="vazio" style={{ margin: 0 }}>cada camada tem volume próprio. remover uma camada mantém o arquivo na biblioteca.</p>
     {!ambiencia.faixas.length && <p className="vazio" style={{ margin: 0 }}>nenhuma ambiência ainda — envie um áudio acima.</p>}
     {ambiencia.faixas.map((f) => <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
       <button onClick={() => selecionar(f.id)} aria-pressed={f.id === ambiencia.faixaAtualId} style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</button>

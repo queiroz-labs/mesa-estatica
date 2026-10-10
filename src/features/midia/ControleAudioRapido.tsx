@@ -61,7 +61,17 @@ export default function ControleAudioRapido() {
   };
   const canais = [
     { chave: 'musica', nome: 'música', estado: midia, alternar: alternarMusica, definirVolume: definirVolumeMidia },
-    { chave: 'ambiencia', nome: 'ambiência', estado: ambiencia, alternar: alternarAmbiencia, definirVolume: definirVolumeAmbiencia },
+    { chave: 'ambiencia', nome: ambiencia.camadas?.length ? 'ambiência 1' : 'ambiência', estado: ambiencia, alternar: alternarAmbiencia, definirVolume: definirVolumeAmbiencia },
+    ...(ambiencia.camadas ?? []).map((c, i) => ({
+      chave: `ambiencia-${c.id}`, nome: `ambiência ${i + 2}`, estado: { ...c, faixas: ambiencia.faixas },
+      alternar: () => {
+        const atual = useStore.getState().ambiencia.camadas?.find((item) => item.id === c.id);
+        if (!atual?.faixaAtualId) return;
+        useStore.getState().atualizarCamadaAmbiencia(c.id, { tocando: !atual.tocando,
+          posicaoSegundos: calcularPosicaoMidia({ ...atual, modoLoop: 'faixa' }, useAmbienciaUiStore.getState().camadas[c.id]?.duracaoSegundos ?? 0) });
+      },
+      definirVolume: (volume: number) => useStore.getState().atualizarCamadaAmbiencia(c.id, { volume }),
+    })),
   ];
 
   return <div className="audio-rapido" ref={raizRef}>
@@ -70,7 +80,7 @@ export default function ControleAudioRapido() {
       title="música e ambiência — pausa e volume para todos"
       onClick={() => setAberto((valor) => !valor)}>
       <IconeMegafone size={13} /> áudio
-      <span className="audio-rapido-sinal" data-tocando={midia.tocando || ambiencia.tocando} aria-hidden="true" />
+      <span className="audio-rapido-sinal" data-tocando={midia.tocando || ambiencia.tocando || ambiencia.camadas?.some((c) => c.tocando)} aria-hidden="true" />
     </button>
     {aberto && <div className="audio-rapido-painel" ref={painelRef} id={`${id}-painel`}
       role="dialog" aria-label="controle de áudio" tabIndex={-1}

@@ -438,8 +438,11 @@ export interface EstadoMidia {
   volume: number;
 }
 
-/** Biblioteca e transporte próprios. A faixa escolhida sempre repete em loop nativo. */
-export type EstadoAmbiencia = Omit<EstadoMidia, 'modoLoop'>;
+export type CamadaAmbiencia = Pick<EstadoMidia, 'faixaAtualId' | 'tocando' | 'posicaoSegundos' | 'atualizadoEm' | 'volume'> & { id: string };
+
+/** Os campos antigos continuam representando a primeira camada. Clientes antigos
+ * só a reproduzem; camadas adicionais são opcionais para aceitar saves anteriores. */
+export type EstadoAmbiencia = Omit<EstadoMidia, 'modoLoop'> & { camadas?: CamadaAmbiencia[] };
 
 /** Um dos 12 botões do soundpad. `slot` (0–11) é a identidade de posição na grade. */
 export interface SomSoundpad {

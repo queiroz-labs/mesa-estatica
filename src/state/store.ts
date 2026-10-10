@@ -11,7 +11,7 @@ import { marcarLocalErro, marcarLocalOk } from '../lib/statusMesa';
 import { ehRotaJogador } from '../lib/rotaJogador';
 import { validarTiposEstado } from './validarImportacao';
 import { QUANTIDADE_SLOTS_SOUNDPAD } from './soundpad';
-import { normalizarAmbiencia } from './ambiencia';
+import { alterarCamadaAmbiencia, CAMADA_PRINCIPAL, normalizarAmbiencia, pararAmbienciasImportadas } from './ambiencia';
 import {
   COR_NPC_PADRAO,
   criarEstadoInicial,
@@ -38,6 +38,7 @@ import type {
   EstadoMapa,
   EstadoMidia,
   EstadoAmbiencia,
+  CamadaAmbiencia,
   FaixaMidia,
   Ficha,
   GradeMapa,
@@ -283,6 +284,9 @@ interface Acoes {
   removerFaixaAmbiencia: (id: string) => void;
   atualizarEstadoAmbiencia: (patch: Partial<Pick<EstadoAmbiencia, 'faixaAtualId' | 'tocando' | 'posicaoSegundos'>>) => void;
   definirVolumeAmbiencia: (volume: number) => void;
+  adicionarCamadaAmbiencia: () => string;
+  removerCamadaAmbiencia: (id: string) => void;
+  atualizarCamadaAmbiencia: (id: string, patch: Partial<Pick<CamadaAmbiencia, 'faixaAtualId' | 'tocando' | 'posicaoSegundos' | 'volume'>>) => void;
 
   /** Grava o som no slot (0–11), sobrescrevendo o que estiver lá — é o "substituir" da UI. */
   definirSomSoundpad: (slot: number, nome: string, path: string, url: string) => string;
@@ -1483,6 +1487,7 @@ export const useStore = create<Store>()(
       removerFaixaAmbiencia: (id) => set((s) => ({ ambiencia: {
         ...s.ambiencia, faixas: s.ambiencia.faixas.filter((f) => f.id !== id),
         ...(s.ambiencia.faixaAtualId === id ? { faixaAtualId: null, tocando: false, posicaoSegundos: 0, atualizadoEm: new Date().toISOString() } : {}),
+        camadas: s.ambiencia.camadas?.map((c) => c.faixaAtualId === id ? { ...c, faixaAtualId: null, tocando: false, posicaoSegundos: 0, atualizadoEm: new Date().toISOString() } : c),
       } })),
       atualizarEstadoAmbiencia: (patch) => set((s) => {
         const ambiencia = { ...s.ambiencia, ...patch, atualizadoEm: new Date().toISOString() };
@@ -1496,6 +1501,17 @@ export const useStore = create<Store>()(
       definirVolumeAmbiencia: (volume) => {
         if (Number.isFinite(volume)) set((s) => ({ ambiencia: { ...s.ambiencia, volume: Math.max(0, Math.min(1, volume)) } }));
       },
+      adicionarCamadaAmbiencia: () => {
+        const id = crypto.randomUUID();
+        set((s) => ({ ambiencia: { ...s.ambiencia, camadas: [...(s.ambiencia.camadas ?? []),
+          { id, faixaAtualId: null, tocando: false, posicaoSegundos: 0, atualizadoEm: new Date().toISOString(), volume: 0.5 }],
+        } }));
+        return id;
+      },
+      removerCamadaAmbiencia: (id) => set((s) => ({ ambiencia: id === CAMADA_PRINCIPAL
+        ? alterarCamadaAmbiencia(s.ambiencia, id, { faixaAtualId: null, tocando: false, posicaoSegundos: 0 })
+        : { ...s.ambiencia, camadas: s.ambiencia.camadas?.filter((c) => c.id !== id) } })),
+      atualizarCamadaAmbiencia: (id, patch) => set((s) => ({ ambiencia: alterarCamadaAmbiencia(s.ambiencia, id, patch) })),
 
       // Um slot por vez: definir sobrescreve o som que estiver naquela posição (é o
       // "substituir" da UI — não existe caminho separado pra trocar).
@@ -1758,7 +1774,7 @@ export const useStore = create<Store>()(
             modoLoop: d.midia?.modoLoop ?? 'nenhum',
             volume: typeof d.midia?.volume === 'number' ? d.midia.volume : 0.8,
           },
-          ambiencia: { ...normalizarAmbiencia(d.ambiencia), tocando: false, posicaoSegundos: 0, atualizadoEm: new Date(0).toISOString() },
+          ambiencia: pararAmbienciasImportadas(d.ambiencia),
           soundpad: {
             sons: (d.soundpad?.sons ?? [])
               .filter((x) => Number.isInteger(x?.slot) && x.slot >= 0 && x.slot < QUANTIDADE_SLOTS_SOUNDPAD)
