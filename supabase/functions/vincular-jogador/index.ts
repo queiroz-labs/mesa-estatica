@@ -35,6 +35,9 @@ Deno.serve(async (req) => {
     // corpo inválido — cai no check abaixo
   }
   if (!ownerToken) return jsonResponse({ erro: 'owner_token ausente' }, 400);
+  if (typeof ownerToken !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ownerToken)) {
+    return jsonResponse({ erro: 'link inválido' }, 404);
+  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 
@@ -49,34 +52,21 @@ Deno.serve(async (req) => {
   // cliente com privilégio total — service_role nunca sai desta função
   const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  const { data: linha, error: buscaError } = await admin
-    .from('characters_privado')
-    .select('id, auth_uid')
-    .eq('owner_token', ownerToken)
-    .maybeSingle();
+  // A RPC serializa revogação + atribuição na mesma transação (migração 0043).
+  // O UID vem exclusivamente do JWT validado, nunca do corpo enviado pelo cliente.
+  // Sem fallback para updates separados: banco indisponível ou migração ausente
+  // deve falhar fechado, preservando o ownership confirmado no banco.
+  try {
+    const { data: characterId, error: vinculoError } = await admin.rpc('vincular_jogador_atomico', {
+      p_owner_token: ownerToken,
+      p_auth_uid: authUid,
+    });
 
-  if (buscaError || !linha) return jsonResponse({ erro: 'link inválido' }, 404);
+    if (vinculoError) return jsonResponse({ erro: 'falha ao vincular' }, 500);
+    if (!characterId) return jsonResponse({ erro: 'link inválido' }, 404);
 
-  // Fecha a leitura cruzada: se essa identidade já estava vinculada a OUTRA ficha (ex.: o mesmo
-  // navegador testou dois links), o vínculo antigo é revogado antes do novo — uma identidade nunca
-  // fica com auth_uid válido em mais de uma linha de characters_privado ao mesmo tempo, o que a
-  // policy RLS (auth_uid = auth.uid()) usaria pra liberar leitura das duas.
-  await admin.from('characters_privado').update({ auth_uid: null }).eq('auth_uid', authUid).neq('id', linha.id);
-
-  const { error: updateError } = await admin
-    .from('characters_privado')
-    .update({ auth_uid: authUid })
-    .eq('id', linha.id);
-
-  if (updateError) return jsonResponse({ erro: 'falha ao vincular' }, 500);
-
-  // auditoria — não bloqueia o fluxo se falhar (nunca deixa a troca de aparelho travar por
-  // causa de um log).
-  await admin.from('vinculo_jogador_log').insert({
-    character_id: linha.id,
-    auth_uid_anterior: linha.auth_uid,
-    auth_uid_novo: authUid,
-  });
-
-  return jsonResponse({ ok: true, characterId: linha.id }, 200);
+    return jsonResponse({ ok: true, characterId }, 200);
+  } catch {
+    return jsonResponse({ erro: 'falha ao vincular' }, 500);
+  }
 });
