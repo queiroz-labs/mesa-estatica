@@ -176,6 +176,7 @@ export interface TokenMapa {
 }
 
 export type TipoLog =
+  | 'ficha'
   | 'teste'
   | 'sanidade'
   | 'surto'
@@ -194,7 +195,7 @@ export interface EntradaLog {
   tipo: TipoLog;
   personagemId: string | null;
   texto: string;
-  /** Só setado quando a rolagem associada é privada (mesma semântica de `EntradaRoll.visibilidade`)
+  /** Também usado nas alterações de ficha privadas (mesma semântica de `EntradaRoll.visibilidade`)
    *  — ausente/undefined trata como pública. Sem migração de schema: campo aditivo opcional. */
   visibilidade?: 'publica' | 'privada';
   /** Rodada em que a entrada foi registrada, só quando `modoCombate` estava ligado no momento

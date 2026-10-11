@@ -4,6 +4,7 @@ import type { EntradaLog, EntradaRoll, TipoLog } from '../state/types';
 
 const LABELS_TIPO: Record<TipoLog | 'todos', string> = {
   todos: 'todos',
+  ficha: 'alteração de ficha',
   teste: 'teste',
   sanidade: 'sanidade',
   surto: 'surto',

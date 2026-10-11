@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { criarEstadoInicial } from '../state/factories';
+import { criarEstadoInicial, criarFichaVazia } from '../state/factories';
 import { useStore } from '../state/store';
 
 // ===== iniciarSyncLogRolls — insert de entrada nova e update de visibilidade (log e rolls) =====
@@ -110,6 +110,26 @@ describe('iniciarSyncLogRolls', () => {
     const inserido = mock.inserts.find((i) => i.table === 'log_publico')!;
     expect(inserido.payload.texto).toBe('algo aconteceu');
     expect(inserido.payload.visibilidade).toBe('publica'); // ausente no client = 'publica' na linha
+  });
+
+  it('envia alterações de ficha ao mestre como entradas privadas sem reenviar no mesmo grau', async () => {
+    const ficha = { ...criarFichaVazia(), nome: 'Helena' };
+    useStore.setState({ fichas: [ficha] });
+    cleanup = iniciarSyncLogRolls();
+    await Promise.resolve();
+    useStore.getState().atualizarFicha(ficha.id, {
+      pericias: { investigacao: 3 },
+      kitInvestigacao: [{ id: 'kit-1', nome: 'Lanterna', nota: '' }],
+      armas: [{ id: 'arma-1', nome: 'Faca', bonusAtaque: '', dano: '1d4', alcance: '', nota: '', periciaAtaqueId: 'briga' }],
+      vinculos: [{ id: 'v1', quemOuOque: 'irmã', frase: '' }],
+    });
+    useStore.getState().atualizarFicha(ficha.id, { pericias: { investigacao: 3 } });
+    await vi.waitFor(() => expect(mock.inserts).toHaveLength(4));
+    for (const inserido of mock.inserts) {
+      expect(inserido.table).toBe('log_publico');
+      expect(inserido.payload).toMatchObject({ tipo: 'ficha', personagem_id: ficha.id, visibilidade: 'privada' });
+    }
+    expect(mock.updates).toEqual([]);
   });
 
   it('mudar a visibilidade de uma entrada de log JÁ EXISTENTE dispara update em log_publico, não um novo insert', async () => {

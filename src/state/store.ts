@@ -10,6 +10,7 @@ import { inserirNaIniciativa, ordenarIniciativa } from '../rules/teste';
 import { marcarLocalErro, marcarLocalOk } from '../lib/statusMesa';
 import { ehRotaJogador } from '../lib/rotaJogador';
 import { validarTiposEstado } from './validarImportacao';
+import { descreverAlteracoesFicha } from './logAlteracoesFicha';
 import { normalizarObjetosMapa, objetoMapaValido, MAX_OBJETOS_MAPA } from './objetosMapa';
 import { QUANTIDADE_SLOTS_SOUNDPAD } from './soundpad';
 import { alterarCamadaAmbiencia, CAMADA_PRINCIPAL, normalizarAmbiencia, pararAmbienciasImportadas } from './ambiencia';
@@ -747,7 +748,11 @@ export const useStore = create<Store>()(
         set((s) => ({ fichas: [...s.fichas, ficha], fichaAtivaId: s.fichaAtivaId ?? ficha.id }));
         return ficha.id;
       },
-      atualizarFicha: (id, patch) =>
+      atualizarFicha: (id, patch) => {
+        const anterior = get().fichas.find((f) => f.id === id);
+        if (!anterior) return;
+        const atual = { ...anterior, ...patch };
+        const alteracoes = descreverAlteracoesFicha(anterior, atual);
         set((s) => ({
           fichas: s.fichas.map((f) => {
             if (f.id !== id) return f;
@@ -768,7 +773,13 @@ export const useStore = create<Store>()(
             }
             return atualizada;
           }),
-        })),
+        }));
+        const viaJogador = typeof window !== 'undefined' && ehRotaJogador(window.location.pathname);
+        const autor = viaJogador ? `jogador ${anterior.jogador.trim() || anterior.nome || 'sem nome'}` : 'mestre';
+        for (const alteracao of alteracoes) {
+          get().registrarLog('ficha', `${atual.nome || 'sem nome'} · ${autor} ${alteracao}`, id, 'privada');
+        }
+      },
       removerFicha: (id) =>
         set((s) => {
           const fichas = s.fichas.filter((f) => f.id !== id);
