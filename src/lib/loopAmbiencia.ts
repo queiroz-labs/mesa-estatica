@@ -26,7 +26,7 @@ export class LoopAmbiencia {
     this.tentouPreparar = true;
     const revisao = this.revisao;
     try { this.lease = adquirirBufferAmbiencia(this.elemento.src, this.elemento.duration); }
-    catch { this.fallback?.(); return; }
+    catch (erro) { console.warn('Loop de ambiência: falha ao preparar buffer', erro); this.fallback?.(); return; }
     if (!this.lease) { this.fallback?.(); return; }
     const lease = this.lease;
     void lease.promessa.then((buffer) => {
@@ -36,8 +36,9 @@ export class LoopAmbiencia {
       this.ganho.connect(lease.contexto.destination);
       this.atualizarVolume();
       if (this.desejaTocar) this.promover();
-    }).catch(() => {
+    }).catch((erro) => {
       if (this.descartado || revisao !== this.revisao) return;
+      console.warn('Loop de ambiência: falha ao carregar buffer', erro);
       this.lease = null;
       lease.liberar();
       this.fallback?.();

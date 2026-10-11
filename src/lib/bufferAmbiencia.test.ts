@@ -24,6 +24,17 @@ it('compartilha download/decodificação por URL e fecha contexto apenas após �
   b.liberar(); expect(contextos[0].close).toHaveBeenCalledOnce();
 });
 
+it('obtém resposta CORS nova mesmo se o player nativo já guardou uma resposta sem CORS no cache', async () => {
+  vi.mocked(fetch).mockImplementation(async (_url, options) => {
+    if (options?.cache !== 'reload') throw new TypeError('Failed to fetch');
+    return new Response(new Uint8Array([1, 2, 3]));
+  });
+  const a = adquirir('preloaded.wav', 2)!;
+  await expect(a.promessa).resolves.toBe(buffer);
+  expect(contextos[0].decodeAudioData).toHaveBeenCalledOnce();
+  a.liberar();
+});
+
 it('recusa duração/buffer individual grande e orçamento total reservado, sem iniciar transferências extras', async () => {
   expect(adquirir('longa', 181)).toBeNull(); expect(adquirir('grande', 180)).toBeNull();
   expect(adquirir('indefinida', Infinity)).toBeNull();

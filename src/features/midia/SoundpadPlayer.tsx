@@ -32,14 +32,14 @@ export default function SoundpadPlayer() {
   const ultimoDisparo = useStore((s) => s.soundpad.ultimoDisparo);
   const mudo = useSoundpadUiStore((s) => s.mudo);
   const jaTocado = useRef<number | null>(null);
-  const audiosPorSlot = useRef<Map<number, HTMLAudioElement>>(new Map());
+  const audiosPorSlot = useRef<Map<number, { audio: HTMLAudioElement; somId: string; url: string }>>(new Map());
 
   const sonsRef = useRef(useStore.getState().soundpad.sons);
   const volumeRef = useRef(useStore.getState().soundpad.volume);
   useEffect(() => {
     const audios = audiosPorSlot.current;
     return () => {
-      for (const [slot, audio] of audios) {
+      for (const [slot, { audio }] of audios) {
         audio.pause();
         useSoundpadUiStore.getState().marcarParado(slot);
       }
@@ -51,7 +51,16 @@ export default function SoundpadPlayer() {
       useStore.subscribe((s) => {
         sonsRef.current = s.soundpad.sons;
         volumeRef.current = s.soundpad.volume;
-        for (const audio of audiosPorSlot.current.values()) audio.volume = s.soundpad.volume;
+        for (const [slot, { audio, somId, url }] of audiosPorSlot.current) {
+          const som = s.soundpad.sons.find((item) => item.slot === slot);
+          // Vale também para alterações recebidas pelo Realtime. A instância antiga
+          // não pode continuar tocando depois que seu arquivo sai deste slot.
+          if (!som || som.id !== somId || som.url !== url) {
+            audio.pause();
+            audiosPorSlot.current.delete(slot);
+            useSoundpadUiStore.getState().marcarParado(slot);
+          } else audio.volume = s.soundpad.volume;
+        }
       }),
     [],
   );
@@ -59,7 +68,7 @@ export default function SoundpadPlayer() {
   // Mudo é compartilhado com o player de música via soundpadUiStore — efeitos criados antes do
   // toggle também precisam refletir a mudança sem esperar o próximo disparo.
   useEffect(() => {
-    for (const audio of audiosPorSlot.current.values()) audio.muted = mudo;
+    for (const { audio } of audiosPorSlot.current.values()) audio.muted = mudo;
   }, [mudo]);
 
   useEffect(() => {
@@ -74,7 +83,7 @@ export default function SoundpadPlayer() {
     const { slot, tipo } = ultimoDisparo;
 
     if (tipo === 'parar') {
-      audiosPorSlot.current.get(slot)?.pause();
+      audiosPorSlot.current.get(slot)?.audio.pause();
       audiosPorSlot.current.delete(slot);
       useSoundpadUiStore.getState().marcarParado(slot);
       return;
@@ -83,7 +92,7 @@ export default function SoundpadPlayer() {
     const som = sonsRef.current.find((s) => s.slot === slot);
     if (!som?.url) return;
 
-    audiosPorSlot.current.get(slot)?.pause();
+    audiosPorSlot.current.get(slot)?.audio.pause();
 
     const audio = new Audio(som.url);
     audio.volume = volumeRef.current;
@@ -91,12 +100,12 @@ export default function SoundpadPlayer() {
     const encerrar = () => {
       // Repetir um slot pode rejeitar o play anterior por AbortError. Essa instância
       // antiga não pode retirar a nova do mapa nem desfazer o duck da música.
-      if (audiosPorSlot.current.get(slot) !== audio) return;
+      if (audiosPorSlot.current.get(slot)?.audio !== audio) return;
       audiosPorSlot.current.delete(slot);
       useSoundpadUiStore.getState().marcarParado(slot);
     };
     audio.addEventListener('ended', encerrar);
-    audiosPorSlot.current.set(slot, audio);
+    audiosPorSlot.current.set(slot, { audio, somId: som.id, url: som.url });
     useSoundpadUiStore.getState().marcarTocando(slot);
     audio.play().catch(encerrar);
   }, [ultimoDisparo]);

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import Icone from '../../components/Icone';
 import { fadeVolume } from '../../lib/audioFade';
 import { posicionarMidia } from '../../lib/midiaPlayback';
+import { TransporteMusica } from '../../lib/transporteMusica';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
 import { useStore } from '../../state/store';
 import { habilitarAudioJogador, useAudioJogadorStore } from '../../state/audioJogadorStore';
@@ -35,6 +36,7 @@ export default function MidiaPlayerJogador() {
   const mudo = useSoundpadUiStore((s) => s.mudo);
   const definirMudo = useSoundpadUiStore((s) => s.definirMudo);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const motorRef = useRef<TransporteMusica | null>(null);
   const desbloqueado = useAudioJogadorStore((s) => s.habilitado);
   const setDesbloqueado = useAudioJogadorStore((s) => s.definirHabilitado);
 
@@ -57,7 +59,16 @@ export default function MidiaPlayerJogador() {
   const url = faixaAtual?.url;
 
   useEffect(() => {
-    const audio = audioRef.current;
+    if (!audioRef.current) return;
+    // Avança localmente para a fonte já agendada; só o mestre publica o transporte.
+    const motor = new TransporteMusica(audioRef.current, { avancou: () => {}, terminou: () => {}, fallback: () => {} });
+    motorRef.current = motor;
+    return () => { motor.dispose(); motorRef.current = null; };
+  }, []);
+  useEffect(() => { motorRef.current?.configurar(midia.faixas, midia.modoLoop); }, [midia.faixas, midia.modoLoop]);
+
+  useEffect(() => {
+    const audio = motorRef.current;
     const tentativa = tentativaRef;
     const fade = fadeTokenRef;
     return () => {
@@ -68,8 +79,10 @@ export default function MidiaPlayerJogador() {
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = motorRef.current;
     if (!audio) return;
+    if (!audio.aceitarEstado(midia)) return;
+    audio.selecionar(midia.faixaAtualId);
     const tentativa = ++tentativaRef.current;
     fadeTokenRef.current++;
 
@@ -82,7 +95,8 @@ export default function MidiaPlayerJogador() {
     posicionarMidia(audio, midia);
 
     // fade só entra numa troca de faixa/início/fim de verdade — não num resync puro de posição.
-    const trocou = prevFaixaIdRef.current !== midia.faixaAtualId || prevTocandoRef.current !== midia.tocando;
+    const continua = audio.consumirTransicao(url);
+    const trocou = (prevFaixaIdRef.current !== midia.faixaAtualId || prevTocandoRef.current !== midia.tocando) && !continua;
     prevFaixaIdRef.current = midia.faixaAtualId;
     prevTocandoRef.current = midia.tocando;
 
@@ -115,7 +129,7 @@ export default function MidiaPlayerJogador() {
   }, [url, midia.faixaAtualId, midia.tocando, midia.posicaoSegundos, midia.atualizadoEm, desbloqueado]);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = motorRef.current;
     if (!audio) return;
     if (!useStore.getState().midia.tocando) return;
     const volumeAlvo = midia.volume * (efeitoTocando ? FATOR_DUCK : 1);
@@ -123,12 +137,12 @@ export default function MidiaPlayerJogador() {
   }, [midia.volume, efeitoTocando]);
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.muted = mudo;
+    if (motorRef.current) motorRef.current.muted = mudo;
   }, [mudo]);
 
   const habilitar = () => {
     habilitarAudioJogador();
-    const audio = audioRef.current;
+    const audio = motorRef.current;
     if (audio && midia.tocando) {
       const tentativa = ++tentativaRef.current;
       fadeTokenRef.current++;
@@ -143,7 +157,10 @@ export default function MidiaPlayerJogador() {
 
   return (
     <>
-      <audio ref={audioRef} loop={midia.modoLoop === 'faixa'} onLoadedMetadata={(e) => posicionarMidia(e.currentTarget, useStore.getState().midia)} />
+      <audio ref={audioRef} loop={midia.modoLoop === 'faixa'} onLoadedMetadata={() => {
+        const audio = motorRef.current;
+        if (audio && audio.aceitarEstado(useStore.getState().midia)) posicionarMidia(audio, useStore.getState().midia);
+      }} />
       <div
         className="mono"
         style={{

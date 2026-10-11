@@ -24,7 +24,9 @@ let bytesReservados = 0;
 let fila: Promise<unknown> = Promise.resolve();
 
 async function baixar(url: string, signal: AbortSignal): Promise<ArrayBuffer> {
-  const resposta = await fetch(url, { signal });
+  // O <audio> nativo pode ter preenchido o cache com uma resposta sem CORS.
+  // O buffer precisa de uma transferência CORS própria, inclusive após o preload.
+  const resposta = await fetch(url, { signal, cache: 'reload' });
   if (!resposta.ok || !resposta.body) throw new Error('áudio indisponível para buffer');
   if (Number(resposta.headers.get('content-length')) > LIMITE_ARQUIVO_AMBIENCIA) {
     await resposta.body.cancel();

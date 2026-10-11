@@ -1,6 +1,6 @@
 /*
  * Fog of war (ROADMAP F1) — três camadas sobre o `<img>` do mapa, em px absolutos do letterbox
- * (`imgRenderRect`). CSS puro; zero JS por frame; só `mask-image`/`opacity`/`transform`.
+ * (`imgRenderRect`). CSS puro; zero JS por frame.
  *
  * Três estados por pixel (cada um tem uma "assinatura visual" pro jogador reconhecer
  * instantaneamente dado atual vs. desatualizado — essencial pra horror/investigação):
@@ -58,12 +58,12 @@
   background-color: var(--void);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-repeat: repeat;
-  opacity: 0.95;
+  opacity: 1;
   animation: fow-chiado 0.8s steps(4) infinite;
 }
 
 /* mestre (`FoWOverlay.tsx`, `[data-visao='mestre']`) precisa enxergar o mapa por baixo pra
-   desenhar com precisão — o jogador é quem recebe o efeito cheio (0.95, quase opaco). Sem
+   desenhar com precisão — o jogador recebe cobertura totalmente opaca. Sem
    isso, a própria tela do mestre "explode" em ruído no primeiro revelar e ele não consegue
    checar se a área marcada bateu. */
 .fow-camadas[data-visao='mestre'] .fow-camada[data-estado='nunca'] {
@@ -81,10 +81,12 @@
 }
 
 @keyframes fow-chiado {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(-1px, 0.5px); }
-  50% { transform: translate(0.5px, -1px); }
-  75% { transform: translate(-0.5px, 0.5px); }
+  /* Só a textura se move: deslocar a camada também deslocava a máscara e
+     abria frestas nas bordas de áreas nunca reveladas. */
+  0%, 100% { background-position: 0 0; }
+  25% { background-position: -1px 1px; }
+  50% { background-position: 1px -1px; }
+  75% { background-position: -1px 1px; }
 }
 
 /* ===== Camada 2 — visto, sem luz agora: frame congelado degradado ===== */

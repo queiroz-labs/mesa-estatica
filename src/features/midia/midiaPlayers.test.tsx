@@ -270,6 +270,41 @@ describe.each([['mestre', MidiaPlayerGM], ['jogador', MidiaPlayerJogador]] as co
 });
 
 describe('soundpad', () => {
+  it.each(['remover', 'trocar id', 'trocar url'] as const)('para a instância ao %s no slot, sem interromper outros efeitos', (acao) => {
+    const audios: ReturnType<typeof audioFalso>[] = [];
+    vi.stubGlobal('Audio', class {
+      constructor() { const audio = audioFalso(); audios.push(audio); return audio; }
+    });
+    const sons = [
+      { id: 'antigo', slot: 0, url: 'https://example.test/qa.wav' },
+      { id: 'outro', slot: 1, url: 'https://example.test/outro.wav' },
+    ];
+    ambiente.estado.soundpad = { ...criarEstadoSoundpad(), sons, ultimoDisparo: { slot: 0, tipo: 'tocar', em: new Date().toISOString() } };
+    renderizar(SoundpadPlayer);
+    ambiente.estado.soundpad.ultimoDisparo = { slot: 1, tipo: 'tocar', em: new Date(Date.now() + 1).toISOString() };
+    renderizar(SoundpadPlayer);
+    expect(audios.every((audio) => !audio.paused)).toBe(true);
+    ambiente.estado.soundpad.sons = acao === 'remover' ? [sons[1]] : [
+      { ...sons[0], ...(acao === 'trocar id' ? { id: 'novo' } : { url: 'https://example.test/novo.wav' }) }, sons[1],
+    ];
+    for (const fn of ambiente.listeners) fn(ambiente.estado);
+    expect(audios[0].paused).toBe(true);
+    expect(audios[1].paused).toBe(false);
+    expect(ambiente.som.marcarParado).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it('renomear, refazer a lista e ajustar volume não interrompe um efeito em andamento', () => {
+    const audio = audioFalso();
+    vi.stubGlobal('Audio', class { constructor() { return audio; } });
+    ambiente.estado.soundpad = { ...criarEstadoSoundpad(), sons: [{ id: 'som', slot: 0, url: 'https://example.test/qa.wav' }], ultimoDisparo: { slot: 0, tipo: 'tocar', em: new Date().toISOString() } };
+    renderizar(SoundpadPlayer);
+    ambiente.estado.soundpad = { ...ambiente.estado.soundpad, volume: 0.2, sons: [{ ...ambiente.estado.soundpad.sons[0], nome: 'renomeado' }] };
+    for (const fn of ambiente.listeners) fn(ambiente.estado);
+    expect(audio.paused).toBe(false);
+    expect(audio.volume).toBe(0.2);
+    expect(ambiente.som.marcarParado).not.toHaveBeenCalled();
+  });
+
   it('rejeição da instância anterior não encerra o slot novo, e unmount para o novo áudio', async () => {
     const audios: ReturnType<typeof audioFalso>[] = [];
     const rejeitar: ((e: Error) => void)[] = [];

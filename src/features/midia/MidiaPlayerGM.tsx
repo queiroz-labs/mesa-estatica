@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fadeVolume } from '../../lib/audioFade';
 import { posicionarMidia } from '../../lib/midiaPlayback';
+import { TransporteMusica } from '../../lib/transporteMusica';
 import { useMidiaUiStore } from '../../state/midiaUiStore';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
 import { useStore } from '../../state/store';
@@ -25,8 +26,10 @@ export default function MidiaPlayerGM() {
   const definirDuracao = useMidiaUiStore((s) => s.definirDuracao);
   const efeitoTocando = useSoundpadUiStore((s) => s.slotsTocando.size > 0);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const motorRef = useRef<TransporteMusica | null>(null);
   const [bloqueado, setBloqueado] = useState(false);
   const [erroAudio, setErroAudio] = useState<string | null>(null);
+  const [loopPadrao, setLoopPadrao] = useState(false);
 
   // refs (não deps de efeito) — usados só pra decidir se um fade deve disparar, sem forçar o
   // efeito de troca de faixa a reagir a `efeitoTocando` (esse é assunto do outro efeito, do duck).
@@ -41,7 +44,27 @@ export default function MidiaPlayerGM() {
   const url = faixaAtual?.url;
 
   useEffect(() => {
-    const audio = audioRef.current;
+    if (!audioRef.current) return;
+    const motor = new TransporteMusica(audioRef.current, {
+      fallback: setLoopPadrao,
+      avancou: (id, posicao, duracao) => {
+        const s = useStore.getState();
+        if (!s.midia.tocando) return;
+        definirDuracao(Number.isFinite(duracao) ? duracao : 0);
+        s.atualizarEstadoMidia({ faixaAtualId: id, posicaoSegundos: posicao, tocando: true });
+      },
+      terminou: () => {
+        if (useStore.getState().midia.tocando) useStore.getState().atualizarEstadoMidia({ tocando: false, posicaoSegundos: 0 });
+      },
+    });
+    motorRef.current = motor;
+    return () => { motor.dispose(); motorRef.current = null; };
+  }, [definirDuracao]);
+
+  useEffect(() => { motorRef.current?.configurar(midia.faixas, midia.modoLoop); }, [midia.faixas, midia.modoLoop]);
+
+  useEffect(() => {
+    const audio = motorRef.current;
     const tentativa = tentativaRef;
     const fade = fadeTokenRef;
     return () => {
@@ -52,8 +75,10 @@ export default function MidiaPlayerGM() {
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = motorRef.current;
     if (!audio) return;
+    if (!audio.aceitarEstado(midia)) return;
+    audio.selecionar(midia.faixaAtualId);
     const tentativa = ++tentativaRef.current;
     // Uma retomada durante o fade de pausa cancela a pausa pendente imediatamente.
     fadeTokenRef.current++;
@@ -70,17 +95,16 @@ export default function MidiaPlayerGM() {
 
     // fade só entra numa troca de faixa/início/fim de verdade — não num resync puro de posição
     // (que também passa por aqui, via `atualizadoEm` nas deps).
-    const trocou = prevFaixaIdRef.current !== midia.faixaAtualId || prevTocandoRef.current !== midia.tocando;
+    const continua = audio.consumirTransicao(url);
+    const trocou = (prevFaixaIdRef.current !== midia.faixaAtualId || prevTocandoRef.current !== midia.tocando) && !continua;
     prevFaixaIdRef.current = midia.faixaAtualId;
     prevTocandoRef.current = midia.tocando;
     const volumeAlvo = midia.volume * (efeitoTocandoRef.current ? FATOR_DUCK : 1);
 
     if (midia.tocando) {
       if (trocou) audio.volume = 0;
-      // só chama play() se ainda não estiver tocando — uma troca de faixa de verdade já reseta
-      // `paused` pra true (reatribuir `.src` roda o "media element load algorithm" da spec), então
-      // o guard não impede o play() de acontecer; só evita a 2ª chamada redundante competindo com
-      // a que `aoTerminar` já disparou direto no handler `ended` (loop de faixa).
+      // A fonte seguinte pode já estar tocando pelo relógio de áudio. O eco do
+      // avanço só confirma o transporte e não reinicia nem aplica fade na emenda.
       if (audio.paused) {
         audio.play().then(
           () => {
@@ -106,7 +130,7 @@ export default function MidiaPlayerGM() {
   // convergem pro mesmo alvo, animado só quando é o duck entrando/saindo (o slider já dispara
   // muitos eventos sozinho ao arrastar; fade aí ficaria atrasado em vez de suave).
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = motorRef.current;
     if (!audio) return;
     // Mudança no duck/volume não deve cancelar a rampa que vai concluir a pausa.
     if (!useStore.getState().midia.tocando) return;
@@ -114,49 +138,8 @@ export default function MidiaPlayerGM() {
     fadeVolume(audio, volumeAlvo, efeitoTocando ? FADE_DUCK_MS : 0, fadeTokenRef);
   }, [midia.volume, efeitoTocando]);
 
-  const aoTerminar = () => {
-    const s = useStore.getState();
-    // `ended` pode chegar durante o fade de pausa. Não reverte a intenção do mestre.
-    if (!s.midia.tocando) return;
-    const ordenadas = [...s.midia.faixas].sort((a, b) => a.ordem - b.ordem);
-    const idxAtual = ordenadas.findIndex((f) => f.id === s.midia.faixaAtualId);
-
-    if (s.midia.modoLoop === 'faixa') {
-      // reinicia direto no handler do evento nativo `ended`, sem esperar o round-trip
-      // store → render → useEffect (linhas 42-85) — faixa/tocando não mudam de *valor* aqui
-      // (já eram os mesmos antes de terminar), só o timestamp, então esse round-trip era a
-      // ÚNICA coisa disparando o replay; em alguns navegadores isso falhava silenciosamente.
-      const audio = audioRef.current;
-      if (audio) {
-        audio.currentTime = 0;
-        const tentativa = tentativaRef.current;
-        // sinaliza sucesso aqui também — com o guard de `paused` no efeito passivo (linhas
-        // 68-84), ele deixa de rodar de novo depois de um restart de loop bem-sucedido, então
-        // não sobra mais ninguém pra limpar `bloqueado` se ele estivesse true no momento do restart.
-        void audio.play().then(
-          () => { if (tentativa === tentativaRef.current) setBloqueado(false); },
-          (erro) => {
-            if (tentativa !== tentativaRef.current) return;
-            if (erro?.name === 'NotAllowedError') setBloqueado(true);
-          },
-        );
-      }
-      s.atualizarEstadoMidia({ posicaoSegundos: 0, tocando: true });
-      return;
-    }
-    if (idxAtual === -1) return;
-    const proximaIdx = idxAtual + 1;
-    if (proximaIdx < ordenadas.length) {
-      s.atualizarEstadoMidia({ faixaAtualId: ordenadas[proximaIdx].id, posicaoSegundos: 0, tocando: true });
-    } else if (s.midia.modoLoop === 'lista' && ordenadas.length > 0) {
-      s.atualizarEstadoMidia({ faixaAtualId: ordenadas[0].id, posicaoSegundos: 0, tocando: true });
-    } else {
-      s.atualizarEstadoMidia({ tocando: false, posicaoSegundos: 0 });
-    }
-  };
-
   const retomar = () => {
-    const audio = audioRef.current;
+    const audio = motorRef.current;
     const atual = useStore.getState().midia;
     if (!audio || !atual.tocando) return;
     const tentativa = ++tentativaRef.current;
@@ -174,13 +157,16 @@ export default function MidiaPlayerGM() {
     <>
       <audio
         ref={audioRef}
-        onEnded={aoTerminar}
-        onLoadedMetadata={(e) => {
-          definirDuracao(e.currentTarget.duration);
-          posicionarMidia(e.currentTarget, useStore.getState().midia, true);
+        loop={midia.modoLoop === 'faixa'}
+        onLoadedMetadata={() => {
+          const audio = motorRef.current;
+          if (!audio) return;
+          definirDuracao(audio.duration);
+          if (audio.aceitarEstado(useStore.getState().midia)) posicionarMidia(audio, useStore.getState().midia, true);
         }}
         onError={() => faixaAtual && setErroAudio(`não consegui tocar "${faixaAtual.nome}" — formato não suportado neste navegador.`)}
       />
+      {loopPadrao && <span role="status" className="mono" style={{ fontSize: 11, color: 'var(--ink-dim)' }}>música: reprodução padrão; a emenda pode ter pausa.</span>}
       {(bloqueado || erroAudio) && (
         <div
           className="mono"

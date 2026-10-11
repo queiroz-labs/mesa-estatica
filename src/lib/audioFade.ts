@@ -6,7 +6,7 @@
  * pra fade de troca de faixa quanto pro "duck" do soundpad, no mesmo `<audio>`/mesmo token).
  */
 export function fadeVolume(
-  audio: HTMLAudioElement,
+  audio: Pick<HTMLAudioElement, 'volume'>,
   alvo: number,
   duracaoMs: number,
   tokenRef: { current: number },

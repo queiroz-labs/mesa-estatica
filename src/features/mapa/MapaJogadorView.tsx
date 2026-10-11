@@ -62,7 +62,7 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
   const arrastandoRef = useRef(false);
   const inicioCliqueRef = useRef<{ x: number; y: number } | null>(null);
-  const [overlay, setOverlay] = useState<{ tipo: 'pc' | 'npc'; participanteId: string } | null>(null);
+  const [overlay, setOverlay] = useState<{ tipo: 'pc' | 'npc'; participanteId: string; mapaId: string | undefined } | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -126,6 +126,9 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
   };
 
   const tokensVisuais = tokens
+    // A névoa não é uma barreira de eventos: tokens cobertos não devem existir
+    // no canvas, na árvore acessível, nos tooltips ou como alvos de clique.
+    .filter((t) => t.participanteId === minhaFicha.id || podeMoverTokenParaFoW(fow, t))
     .map((t) => {
       const p = participantePorId(t.participanteId);
       if (!p) return null;
@@ -157,6 +160,12 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
       };
     })
     .filter((t): t is NonNullable<typeof t> => t !== null);
+
+  const overlayVisivel = overlay !== null && overlay.mapaId === mapaAtivo?.id
+    && tokensVisuais.some((t) => t.participanteId === overlay.participanteId);
+  useEffect(() => {
+    if (overlay && !overlayVisivel) setOverlay(null);
+  }, [overlay, overlayVisivel]);
 
   const imgRenderRect = imgNatural && tamanho.width > 0
     ? getImgRenderRect(tamanho.width, tamanho.height, imgNatural.w, imgNatural.h)
@@ -207,7 +216,7 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
     const inicioClique = inicioCliqueRef.current;
     if (arrastandoRef.current && meuToken && inicioClique) {
       const dist = Math.hypot(e.clientX - inicioClique.x, e.clientY - inicioClique.y);
-      if (dist < LIMIAR_CLIQUE) setOverlay({ tipo: 'pc', participanteId: minhaFicha.id });
+      if (dist < LIMIAR_CLIQUE) setOverlay({ tipo: 'pc', participanteId: minhaFicha.id, mapaId: mapaAtivo?.id });
     }
     if (meuToken) desmarcarTokenEmArrasto(meuToken.id);
     arrastandoRef.current = false;
@@ -280,7 +289,7 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
                 onKeyDown={e => {
                   if (e.target !== e.currentTarget || !['Enter', ' '].includes(e.key)) return;
                   e.preventDefault();
-                  setOverlay({ tipo: t.tipo, participanteId: t.participanteId });
+                  setOverlay({ tipo: t.tipo, participanteId: t.participanteId, mapaId: mapaAtivo?.id });
                 }}
               data-surto={t.surtoAtivo}
               data-turno={t.turnoAtivo}
@@ -288,7 +297,7 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
               data-desacordado={!t.morto && t.desacordado}
               style={{ left: esq, top: topo, borderColor: t.cor, cursor: t.podeMover ? 'grab' : 'pointer' }}
               onPointerDown={t.podeMover ? iniciarArrasto : undefined}
-              onClick={t.podeMover ? undefined : () => setOverlay({ tipo: t.tipo, participanteId: t.participanteId })}
+              onClick={t.podeMover ? undefined : () => setOverlay({ tipo: t.tipo, participanteId: t.participanteId, mapaId: mapaAtivo?.id })}
               title={partesTitulo.join(' — ')}
             >
               <Avatar nome={t.nome} cor={t.cor} foto={t.foto} silhueta={t.silhueta} tamanho={36} />
@@ -310,7 +319,7 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
         <CrachasOverlayJogador minhaFicha={minhaFicha} outrasFichas={outrasFichas} />
       </div>
 
-      {overlay && (() => {
+      {overlay && overlayVisivel && (() => {
         const souEu = overlay.tipo === 'pc' && overlay.participanteId === minhaFicha.id;
         const p = participantePorId(overlay.participanteId);
         if (!p) return null;
