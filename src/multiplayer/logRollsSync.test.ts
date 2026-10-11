@@ -132,6 +132,31 @@ describe('iniciarSyncLogRolls', () => {
     expect(mock.updates).toEqual([]);
   });
 
+  it('sincroniza edições e remoções como novos registros privados preservando o histórico', async () => {
+    const ficha = { ...criarFichaVazia(), nome: 'Helena',
+      kitInvestigacao: [{ id: 'kit-1', nome: 'Lanterna', nota: '' }],
+      armas: [{ id: 'arma-1', nome: 'Faca', bonusAtaque: '', dano: '1d4', alcance: '', nota: '', periciaAtaqueId: 'briga' }],
+      vinculos: [{ id: 'v1', quemOuOque: 'irmã', frase: '' }],
+    };
+    useStore.setState({ fichas: [ficha] });
+    cleanup = iniciarSyncLogRolls();
+    await Promise.resolve();
+    useStore.getState().atualizarFicha(ficha.id, {
+      kitInvestigacao: [{ ...ficha.kitInvestigacao[0], nota: 'restrito' }],
+      armas: [{ ...ficha.armas[0], dano: '1d6' }],
+      vinculos: [{ ...ficha.vinculos[0], frase: 'proteger' }],
+    });
+    useStore.getState().atualizarFicha(ficha.id, { kitInvestigacao: [], armas: [], vinculos: [] });
+    await vi.waitFor(() => expect(mock.inserts).toHaveLength(6));
+    expect(mock.inserts.filter((i) => i.payload.texto.includes('editou'))).toHaveLength(3);
+    expect(mock.inserts.filter((i) => i.payload.texto.includes('removeu'))).toHaveLength(3);
+    expect(new Set(mock.inserts.map((i) => i.payload.id)).size).toBe(6);
+    for (const inserido of mock.inserts) {
+      expect(inserido.payload).toMatchObject({ tipo: 'ficha', personagem_id: ficha.id, visibilidade: 'privada' });
+    }
+    expect(mock.updates).toEqual([]);
+  });
+
   it('mudar a visibilidade de uma entrada de log JÁ EXISTENTE dispara update em log_publico, não um novo insert', async () => {
     cleanup = iniciarSyncLogRolls();
     await vi.waitFor(() => expect(useStore.getState().log).toEqual([]));

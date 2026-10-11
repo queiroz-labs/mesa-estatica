@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import InputTextoDraft from '../../../components/InputTextoDraft';
 import { KIT_INVESTIGACAO, SERVICOS_RUA, type DefinicaoKitInvestigacao } from '../../../rules/data/kitInvestigacao';
 import type { KitInvestigacaoItem } from '../../../state/types';
 import type { SecaoFichaProps } from '../tipos';
@@ -42,10 +43,10 @@ export default function InvestigacaoSection({ ficha, onChange }: SecaoFichaProps
             {itens.map((a) => (
               <tr key={a.id}>
                 <td>
-                  <input value={a.nome} onChange={(e) => atualizar(a.id, { nome: e.target.value })} />
+                  <InputTextoDraft value={a.nome} onCommit={(nome) => atualizar(a.id, { nome })} />
                 </td>
                 <td>
-                  <input value={a.nota} onChange={(e) => atualizar(a.id, { nota: e.target.value })} />
+                  <InputTextoDraft value={a.nota} onCommit={(nota) => atualizar(a.id, { nota })} />
                 </td>
                 <td>
                   <button className="icone-botao perigo" onClick={() => remover(a.id)}>

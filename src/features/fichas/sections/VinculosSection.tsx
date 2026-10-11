@@ -1,4 +1,5 @@
 import type { Vinculo } from '../../../state/types';
+import InputTextoDraft from '../../../components/InputTextoDraft';
 import type { SecaoFichaProps } from '../tipos';
 
 const MAX_VINCULOS = 3;
@@ -27,15 +28,15 @@ export default function VinculosSection({ ficha, onChange }: SecaoFichaProps) {
       {ficha.vinculos.map((v) => (
         <div key={v.id} className="linha-repetivel">
           <div className="campos-grid" style={{ gridTemplateColumns: '1fr 2fr' }}>
-            <input
+            <InputTextoDraft
               placeholder="quem ou o quê"
               value={v.quemOuOque}
-              onChange={(e) => atualizarVinculo(v.id, { quemOuOque: e.target.value })}
+              onCommit={(quemOuOque) => atualizarVinculo(v.id, { quemOuOque })}
             />
-            <input
+            <InputTextoDraft
               placeholder="uma frase"
               value={v.frase}
-              onChange={(e) => atualizarVinculo(v.id, { frase: e.target.value })}
+              onCommit={(frase) => atualizarVinculo(v.id, { frase })}
             />
           </div>
           <button className="icone-botao perigo" onClick={() => remover(v.id)}>

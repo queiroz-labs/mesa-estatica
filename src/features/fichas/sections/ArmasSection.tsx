@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import InputNumeroDraft from '../../../components/InputNumeroDraft';
+import InputTextoDraft from '../../../components/InputTextoDraft';
 import { usePedidoRolagemDanoStore } from '../../../state/pedidoRolagemDanoStore';
 import { usePedidoRolagemTesteStore } from '../../../state/pedidoRolagemTesteStore';
 import { ARMAS, PROTECOES } from '../../../rules/data/armas';
@@ -121,19 +122,19 @@ export default function ArmasSection({ ficha, onChange, souMestre }: SecaoFichaP
             {ficha.armas.map((a) => (
               <tr key={a.id}>
                 <td>
-                  <input value={a.nome} onChange={(e) => atualizar(a.id, { nome: e.target.value })} />
+                  <InputTextoDraft value={a.nome} onCommit={(nome) => atualizar(a.id, { nome })} />
                 </td>
                 <td>
-                  <input value={a.bonusAtaque} onChange={(e) => atualizar(a.id, { bonusAtaque: e.target.value })} />
+                  <InputTextoDraft value={a.bonusAtaque} onCommit={(bonusAtaque) => atualizar(a.id, { bonusAtaque })} />
                 </td>
                 <td>
-                  <input value={a.dano} onChange={(e) => atualizar(a.id, { dano: e.target.value })} />
+                  <InputTextoDraft value={a.dano} onCommit={(dano) => atualizar(a.id, { dano })} />
                 </td>
                 <td>
-                  <input value={a.alcance} onChange={(e) => atualizar(a.id, { alcance: e.target.value })} />
+                  <InputTextoDraft value={a.alcance} onCommit={(alcance) => atualizar(a.id, { alcance })} />
                 </td>
                 <td>
-                  <input value={a.nota} onChange={(e) => atualizar(a.id, { nota: e.target.value })} />
+                  <InputTextoDraft value={a.nota} onCommit={(nota) => atualizar(a.id, { nota })} />
                 </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
