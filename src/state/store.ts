@@ -10,6 +10,7 @@ import { inserirNaIniciativa, ordenarIniciativa } from '../rules/teste';
 import { marcarLocalErro, marcarLocalOk } from '../lib/statusMesa';
 import { ehRotaJogador } from '../lib/rotaJogador';
 import { validarTiposEstado } from './validarImportacao';
+import { normalizarObjetosMapa, objetoMapaValido, MAX_OBJETOS_MAPA } from './objetosMapa';
 import { QUANTIDADE_SLOTS_SOUNDPAD } from './soundpad';
 import { alterarCamadaAmbiencia, CAMADA_PRINCIPAL, normalizarAmbiencia, pararAmbienciasImportadas } from './ambiencia';
 import {
@@ -43,6 +44,7 @@ import type {
   Ficha,
   GradeMapa,
   MapaBiblioteca,
+  ObjetoMapa,
   Npc,
   Pista,
   RegiaoFoW,
@@ -95,6 +97,9 @@ function normalizarMapaBiblioteca(m: any, ordemPadrao: number): MapaBiblioteca {
     nome: typeof m?.nome === 'string' ? m.nome : '',
     imagemPath: typeof m?.imagemPath === 'string' ? m.imagemPath : '',
     imagemUrl: typeof m?.imagemUrl === 'string' ? m.imagemUrl : '',
+    objetos: normalizarObjetosMapa(m?.objetos),
+    objetosRevisao: Number.isSafeInteger(m?.objetosRevisao) && m.objetosRevisao >= 0 ? m.objetosRevisao : 0,
+    objetosPendentes: m?.objetosPendentes === true,
     grade: { ...criarGradeInicial(), ...m?.grade },
     fow: m?.fow
       ? {
@@ -230,6 +235,9 @@ interface Acoes {
   /** Cria um item novo na biblioteca (grid/FoW no default) — `ordem` = maior atual + 1.
    *  Retorna o id gerado. Não muda `mapaAtivoId` sozinho. */
   adicionarMapaBiblioteca: (nome: string, path: string, url: string) => string;
+  adicionarObjetoMapa: (mapaId: string, objeto: ObjetoMapa) => void;
+  atualizarObjetoMapa: (mapaId: string, id: string, patch: Partial<Pick<ObjetoMapa, 'x' | 'y' | 'largura' | 'altura' | 'visivel'>>) => void;
+  removerObjetoMapa: (mapaId: string, id: string) => void;
   /** Remove da lista; se era o ativo, `mapaAtivoId` vira `null`. */
   removerMapaBiblioteca: (id: string) => void;
   renomearMapaBiblioteca: (id: string, nome: string) => void;
@@ -1328,6 +1336,18 @@ export const useStore = create<Store>()(
           return { sessaoPublica: { ...s.sessaoPublica, condicaoDuracao: mapa } };
         }),
 
+      adicionarObjetoMapa: (mapaId, objeto) => set(s => patchMapa(s.mapa, mapaId, m => {
+        const novo = { ...objeto, visivel: false };
+        const objetos = m.objetos ?? [];
+        if (!objetoMapaValido(novo) || objetos.length >= MAX_OBJETOS_MAPA || objetos.some(o => o.id === novo.id)) return m;
+        return { ...m, objetos: [...objetos, novo], objetosPendentes: true };
+      })),
+      atualizarObjetoMapa: (mapaId, id, patch) => set(s => patchMapa(s.mapa, mapaId, m => {
+        if (!m.objetos?.some(o => o.id === id)) return m;
+        const objetos = m.objetos.map(o => o.id === id && objetoMapaValido({ ...o, ...patch }) ? { ...o, ...patch } : o);
+        return { ...m, objetos, objetosPendentes: true };
+      })),
+      removerObjetoMapa: (mapaId, id) => set(s => patchMapa(s.mapa, mapaId, m => ({ ...m, objetos: (m.objetos ?? []).filter(o => o.id !== id), objetosPendentes: true }))),
       adicionarMapaBiblioteca: (nome, path, url) => {
         const id = crypto.randomUUID();
         set((s) => {
@@ -1795,6 +1815,11 @@ export const useStore = create<Store>()(
           config: { ...base.config, ...d.config },
         });
         const estadoNormalizado = normalizar(dados);
+        // Importação não assume que a revisão de outro backup ainda é a do servidor.
+        // Conflito exige escolha explícita; backup antigo não envia uma lista vazia.
+        estadoNormalizado.mapa.biblioteca = estadoNormalizado.mapa.biblioteca.map(m => ({ ...m,
+          objetosRevisao: 0, objetosPendentes: (m.objetos?.length ?? 0) > 0,
+        }));
         set({
           ...base,
           ...estadoNormalizado,

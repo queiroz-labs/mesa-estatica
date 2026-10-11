@@ -9,6 +9,8 @@
  * chaves obrigatórias (`importarJSON`, store.ts) e antes de `normalizar` — se achar problema,
  * a importação nem chega a mexer no estado.
  */
+import { MAX_OBJETOS_MAPA, objetoMapaValido } from './objetosMapa';
+
 export function validarTiposEstado(dados: Record<string, unknown>): string[] {
   const problemas: string[] = [];
 
@@ -157,6 +159,10 @@ export function validarTiposEstado(dados: Record<string, unknown>): string[] {
     // `biblioteca` só existe no formato atual — export legado (pré-biblioteca) não tem essa
     // chave, e `normalizarMapa` (store.ts) já sabe converter esse formato antigo.
     const validarFow = (item: Record<string, unknown>, caminho: string) => {
+      if (item.objetos !== undefined && (!Array.isArray(item.objetos) || item.objetos.length > MAX_OBJETOS_MAPA
+        || !item.objetos.every(objetoMapaValido) || new Set(item.objetos.map(o => o.id)).size !== item.objetos.length)) {
+        problemas.push(`${caminho}.objetos contém imagens ou posições inválidas`);
+      }
       objetar(`${caminho}.fow`, item.fow);
       if (registro(item.fow)) {
         for (const campo of ['vistas', 'visiveisAgora']) listarDeObjetos(`${caminho}.fow.${campo}`, item.fow[campo]);

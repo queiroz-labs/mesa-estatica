@@ -163,5 +163,5 @@ export default function TokenScene({ tokens, width, height, active, imgRenderRec
     cena.renderer.setSize(width, height, false);
   }, [width, height]);
 
-  return <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />;
+  return <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />;
 }

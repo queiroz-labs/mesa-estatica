@@ -343,7 +343,23 @@ export interface GradeMapa {
  *  trocar de mapa ativo e voltar restaura grid/FoW exatamente como ficaram, em vez de um
  *  estado único recalibrado toda vez). Sincroniza via `mapasBibliotecaSync.ts` (migração
  *  0039), mesmo padrão de lista de `FaixaMidia`/`midia_faixas`. */
+export interface ObjetoMapa {
+  id: string;
+  nome: string;
+  imagemUrl: string;
+  imagemPath: string;
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+  visivel: boolean;
+}
+
 export interface MapaBiblioteca {
+  objetos?: ObjetoMapa[];
+  objetosRevisao?: number;
+  /** Rascunho local persistido, nunca enviado na linha genérica do mapa. */
+  objetosPendentes?: boolean;
   id: string;
   nome: string;
   /** path no bucket Storage 'midia' (pasta 'mapas') — só o suficiente pra dar delete no

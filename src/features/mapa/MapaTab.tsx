@@ -12,6 +12,7 @@ import { badgeCondicoes, nomeCondicao } from '../../rules/data/condicoesCombate'
 import { criarGradeInicial } from '../../state/factories';
 import AoEOverlay from './AoEOverlay';
 import BibliotecaMapas from './BibliotecaMapas';
+import ObjetosMapaMestre, { AdicionarImagemMapa } from './ObjetosMapaMestre';
 import CombatOverlay from './CombatOverlay';
 import CrachasOverlay from './CrachasOverlay';
 import FoWOverlay from './FoWOverlay';
@@ -151,7 +152,9 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
   };
 
   const iniciarArrastoToken = (id: string) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     e.preventDefault();
+    (e.currentTarget as HTMLElement).focus({ preventScroll: true });
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     arrastoRef.current = { tipo: 'token', id };
     inicioCliqueRef.current = { x: e.clientX, y: e.clientY };
@@ -290,9 +293,10 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
   });
 
   return (
-    <div className="mapa-tab">
+    <div className="mapa-tab mapa-tab--mestre">
       <div className="mapa-toolbar">
         <BibliotecaMapas />
+        <AdicionarImagemMapa aspectoMapa={imgNatural ? imgNatural.w / imgNatural.h : 1} />
         <div className="mapa-toolbar__espaco" />
         {fichasDisponiveis.length + npcsDisponiveis.length > 0 && (
           <div className="mapa-toolbar__add">
@@ -379,6 +383,15 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
             <div
               key={t.id}
               className="mapa-token"
+                tabIndex={0}
+                role="group"
+                aria-label={`token ${t.nome || 'sem nome'}`}
+                onKeyDown={e => {
+                  if (e.target !== e.currentTarget || !['Enter', ' '].includes(e.key)) return;
+                  e.preventDefault();
+                  const token = tokens.find(token => token.id === t.id);
+                  if (token) setTokenOverlay({ tipo: token.tipo, id: token.participanteId });
+                }}
               data-surto={t.surtoAtivo}
               data-turno={t.turnoAtivo}
               data-morto={t.morto}
@@ -394,6 +407,17 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
                 </span>
               )}
               {condicoesExtras.length > 0 && <span className="mapa-token__condicoes">{badgeCondicoes(condicoesExtras)}</span>}
+                {(() => {
+                  const token = tokens.find(token => token.id === t.id);
+                  const npc = token?.tipo === 'npc' ? npcs.find(n => n.id === token.participanteId) : undefined;
+                  return npc && <button type="button" className="mapa-token__olho"
+                    title={npc.visivel ? 'ocultar NPC dos jogadores' : 'revelar NPC aos jogadores'}
+                    aria-label={`${npc.visivel ? 'ocultar' : 'revelar'} NPC ${npc.nome || 'sem nome'}`} aria-pressed={npc.visivel}
+                    onPointerDown={e => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={e => { e.stopPropagation(); useStore.getState().atualizarNpc(npc.id, { visivel: !npc.visivel }); }}>
+                    <Icone nome={npc.visivel ? 'olho' : 'olho-fechado'} />
+                  </button>;
+                })()}
               <button
                 type="button"
                 className="mapa-token__remover"
@@ -410,6 +434,7 @@ export default function MapaTab({ active = true }: { active?: boolean }) {
             </div>
           );
         })}
+        <ObjetosMapaMestre rect={imgRenderRect} active={active} />
         <ReguaOverlay imgRenderRect={imgRenderRect} tamanho={tamanho} grade={grade} />
         <PingOverlay imgRenderRect={imgRenderRect} tamanho={tamanho} />
         <AoEOverlay imgRenderRect={imgRenderRect} tamanho={tamanho} grade={grade} containerRef={containerRef} imgRef={imgRef} />

@@ -93,6 +93,15 @@ it('ocultar NPC carregado retira NPC e iniciativa sem precisar receber UPDATE ne
   expect(h.cliente.channel.mock.calls.filter(([nome]: [string]) => nome === 'npcs-visibilidade')).toHaveLength(1);
 });
 
+it('visibilidade da interface filtra NPC oculto mesmo se o backend enviar a linha', async () => {
+  MontarJogador();
+  await responder(consultas[0], [{ ...npc, visivel: false }]); await responder(consultas[1], []);
+  expect(h.estados[0]).toEqual([]);
+  const evento = canais.get('jogador-npcs-publico').handlers.get('postgres_changes');
+  evento({ eventType: 'UPDATE', new: npc }); expect(h.estados[0]).toHaveLength(1);
+  evento({ eventType: 'UPDATE', new: { ...npc, visivel: false } }); expect(h.estados[0]).toEqual([]);
+});
+
 it('revelar NPC já na iniciativa reconsulta ambas as tabelas sem reescrever iniciativa', async () => {
   MontarJogador();
   await responder(consultas[0], []); await responder(consultas[1], []);

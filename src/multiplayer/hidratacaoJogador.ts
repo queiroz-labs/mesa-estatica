@@ -203,8 +203,8 @@ export function useNpcsPublicos(): NpcPublico[] {
     let buscarNovamente = false;
 
     // busca inicial E refetch de reconexão — mesmo motivo de `useHidratarSessaoPublica`. RLS
-    // da migração 0003 já filtra visivel = true pro jogador — o que chega aqui é exatamente o
-    // que ele pode ver, sem filtro extra no client.
+    // e filtro visual explícito: não depende das policies instaladas para esconder na UI.
+    // Isso não torna privados dados/URLs já recebidos pelo cliente.
     const refetch = () => {
       if (buscando) {
         buscarNovamente = true;
@@ -223,7 +223,7 @@ export function useNpcsPublicos(): NpcPublico[] {
             return;
           }
           if (error) console.error('[hidratacaoJogador] busca de npcs_publico falhou', error);
-          else if (data) setNpcs((data as LinhaNpcPublico[]).map(paraNpcPublico));
+          else if (data) setNpcs((data as LinhaNpcPublico[]).map(paraNpcPublico).filter(n => n.visivel === true));
         });
     };
     void refetch();
@@ -241,7 +241,8 @@ export function useNpcsPublicos(): NpcPublico[] {
           setNpcs((atual) => atual.filter((n) => n.id !== idRemovido));
         } else {
           const npc = paraNpcPublico(payload.new as LinhaNpcPublico);
-          setNpcs((atual) => (atual.some((n) => n.id === npc.id) ? atual.map((n) => (n.id === npc.id ? npc : n)) : [...atual, npc]));
+          setNpcs((atual) => !npc.visivel ? atual.filter(n => n.id !== npc.id)
+            : (atual.some((n) => n.id === npc.id) ? atual.map((n) => (n.id === npc.id ? npc : n)) : [...atual, npc]));
         }
       })
       .subscribe(assinarStatusCanalComRefetch('jogador-npcs-publico', refetch));

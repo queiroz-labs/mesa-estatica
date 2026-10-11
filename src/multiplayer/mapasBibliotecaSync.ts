@@ -7,6 +7,8 @@ import { ehErroPermissaoNegada, executarComRetentativa, marcarEmVoo, resolverPen
 import { ehDataUrl } from './imagemPendente';
 import { computarDiffMapas } from './mapasBibliotecaDiff';
 import { eraRemocaoExplicita } from './remocaoExplicita';
+import { mesclarObjetosMapa, normalizarObjetosMapa } from '../state/objetosMapa';
+import { iniciarSyncObjetosMapa, tentarObjetosMapa } from './objetosMapaSync';
 
 const PREFIXO_DELETE = 'delete:';
 
@@ -30,6 +32,8 @@ export interface LinhaMapa {
   fow: MapaBiblioteca['fow'];
   ordem: number;
   criado_em: string;
+  objetos?: unknown;
+  objetos_revisao?: number;
 }
 
 export const paraLinha = (m: MapaBiblioteca): LinhaMapa => ({
@@ -44,6 +48,7 @@ export const paraLinha = (m: MapaBiblioteca): LinhaMapa => ({
 });
 
 export const paraMapa = (r: LinhaMapa): MapaBiblioteca => ({
+  ...(r.objetos !== undefined ? { objetos: normalizarObjetosMapa(r.objetos), objetosRevisao: r.objetos_revisao ?? 0 } : {}),
   id: r.id,
   nome: r.nome,
   imagemPath: r.imagem_path,
@@ -66,6 +71,7 @@ export function aoConfirmarMapa(ouvinte: (id: string) => void): () => void {
 }
 function confirmarMapa(id: string): void {
   pendencias.delete(id);
+  tentarObjetosMapa(id);
   for (const ouvinte of ouvintesConfirmacao) ouvinte(id);
 }
 
@@ -88,6 +94,7 @@ export function iniciarSyncMapasBiblioteca({ somenteLeitura = false }: { somente
 
   let aplicandoRemoto = false;
   let mapasAnteriores = useStore.getState().mapa.biblioteca;
+  const pararObjetos = somenteLeitura ? () => {} : iniciarSyncObjetosMapa(mapaAguardandoEnvio);
 
   /** Busca inicial E refetch de reconexão (canal caiu e voltou — o Realtime não reenvia o
    *  evento perdido durante a queda) — merge preservando qualquer item com push em voo
@@ -110,11 +117,12 @@ export function iniciarSyncMapasBiblioteca({ somenteLeitura = false }: { somente
               // dataURL local (nunca chegou a subir, ou upload em voo) não existe no servidor —
               // um refetch sem essa exceção apagava o item da tela até o upload confirmar.
               if (!somenteLeitura && (pendencias.has(local.id) || ehDataUrl(local.imagemUrl))) {
-                biblioteca.push(local);
+                const remoto = remotosPorId.get(local.id);
+                biblioteca.push(remoto ? mesclarObjetosMapa(local, { ...local, objetos: remoto.objetos, objetosRevisao: remoto.objetosRevisao }) : local);
                 continue;
               }
               const remoto = remotosPorId.get(local.id);
-              if (remoto) biblioteca.push(remoto);
+              if (remoto) biblioteca.push(mesclarObjetosMapa(local, remoto));
             }
             for (const remoto of remotos) {
               if (!s.mapa.biblioteca.some((m) => m.id === remoto.id)) biblioteca.push(remoto);
@@ -212,10 +220,12 @@ export function iniciarSyncMapasBiblioteca({ somenteLeitura = false }: { somente
           useStore.setState({ mapa: { ...s.mapa, biblioteca: s.mapa.biblioteca.filter((m) => m.id !== idRemovido) } });
         } else {
           const mapa = paraMapa(payload.new as LinhaMapa);
-          if (!somenteLeitura && pendencias.has(mapa.id)) return;
+          const local = s.mapa.biblioteca.find(m => m.id === mapa.id);
+          const recebido = local ? mesclarObjetosMapa(local, !somenteLeitura && pendencias.has(mapa.id)
+            ? { ...local, objetos: mapa.objetos, objetosRevisao: mapa.objetosRevisao, objetosPendentes: false } : mapa) : mapa;
           const existe = s.mapa.biblioteca.some((m) => m.id === mapa.id);
           const biblioteca = existe
-            ? s.mapa.biblioteca.map((m) => (m.id === mapa.id ? mapa : m))
+            ? s.mapa.biblioteca.map((m) => (m.id === mapa.id ? recebido : m))
             : [...s.mapa.biblioteca, mapa];
           useStore.setState({ mapa: { ...s.mapa, biblioteca } });
         }
@@ -227,6 +237,7 @@ export function iniciarSyncMapasBiblioteca({ somenteLeitura = false }: { somente
     .subscribe(assinarStatusCanalComRefetch('mapas-biblioteca-sync', refetchMapas));
 
   return () => {
+    pararObjetos();
     unsubscribeLocal();
     desconectarCanal('mapas-biblioteca-sync');
     cliente.removeChannel(canal);

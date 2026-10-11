@@ -16,6 +16,7 @@ import AoEViewOverlay from './AoEViewOverlay';
 import CombatOverlayJogador from './CombatOverlayJogador';
 import CrachasOverlayJogador from './CrachasOverlayJogador';
 import FoWViewOverlay from './FoWViewOverlay';
+import ObjetosMapaView from './ObjetosMapaView';
 import { podeMoverTokenParaFoW } from './fowGeometria';
 import PingOverlay from './PingOverlay';
 import ReguaOverlay from './ReguaOverlay';
@@ -186,8 +187,9 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
   };
 
   const iniciarArrasto = (e: React.PointerEvent) => {
-    if (!meuToken) return;
+    if (!meuToken || e.button !== 0) return;
     e.preventDefault();
+    (e.currentTarget as HTMLElement).focus({ preventScroll: true });
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     arrastandoRef.current = true;
     inicioCliqueRef.current = { x: e.clientX, y: e.clientY };
@@ -272,6 +274,14 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
             <div
               key={t.id}
               className="mapa-token"
+                tabIndex={0}
+                role="group"
+                aria-label={`token ${t.nome || 'sem nome'}`}
+                onKeyDown={e => {
+                  if (e.target !== e.currentTarget || !['Enter', ' '].includes(e.key)) return;
+                  e.preventDefault();
+                  setOverlay({ tipo: t.tipo, participanteId: t.participanteId });
+                }}
               data-surto={t.surtoAtivo}
               data-turno={t.turnoAtivo}
               data-morto={t.morto}
@@ -291,6 +301,7 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
             </div>
           );
         })}
+        <ObjetosMapaView rect={imgRenderRect} />
         <ReguaOverlay imgRenderRect={imgRenderRect} tamanho={tamanho} grade={grade} />
         <PingOverlay imgRenderRect={imgRenderRect} tamanho={tamanho} />
         <AoEViewOverlay imgRenderRect={imgRenderRect} tamanho={tamanho} grade={grade} />

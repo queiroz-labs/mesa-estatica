@@ -13,6 +13,9 @@
   flex-wrap: wrap;
 }
 
+/* Espaço para a alça externa de 24px + 4px, inclusive na borda inferior do mapa. */
+.mapa-tab--mestre { padding-bottom: 2rem; }
+
 .mapa-toolbar__espaco {
   flex: 1;
 }
@@ -118,6 +121,11 @@
 .mapa-token:active {
   cursor: grabbing;
 }
+
+/* O foco permite alcançar inclusive tokens totalmente sobrepostos com Tab. */
+.mapa-token:focus-within { z-index: 8; }
+.mapa-token:hover { z-index: 7; }
+.mapa-token:focus-visible { outline: 2px solid var(--rede); outline-offset: 4px; }
 
 .mapa-token__inicial {
   font-family: var(--font-mono);
