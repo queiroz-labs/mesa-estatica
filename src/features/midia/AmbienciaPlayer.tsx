@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { posicionarAmbiencia } from '../../lib/ambienciaPlayback';
+import { LoopAmbiencia } from '../../lib/loopAmbiencia';
 import { registrarRetomadaAudio, useAudioJogadorStore } from '../../state/audioJogadorStore';
 import { useAmbienciaUiStore } from '../../state/ambienciaUiStore';
 import { useSoundpadUiStore } from '../../state/soundpadUiStore';
@@ -29,14 +30,21 @@ export function CamadaAmbienciaPlayer({ jogador = false, camadaId }: { jogador?:
   const habilitado = useAudioJogadorStore((s) => s.habilitado);
   const mudo = useSoundpadUiStore((s) => s.mudo);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const loopRef = useRef<LoopAmbiencia | null>(null);
   const tentativa = useRef(0);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [loopPadrao, setLoopPadrao] = useState(false);
   const faixa = ambiencia.faixas.find((f) => f.id === estado.faixaAtualId);
   const url = faixa?.url;
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const elemento = audioRef.current;
+    if (!elemento) return;
+    const audio = new LoopAmbiencia(elemento,
+      jogador ? undefined : (duracao, posicao) => atualizarTempo(camadaId, duracao, posicao),
+      jogador ? undefined : () => setLoopPadrao(true),
+    );
+    loopRef.current = audio;
     const contador = tentativa;
     const tocar = () => {
       const atual = obterCamadaAmbiencia(useStore.getState().ambiencia, camadaId);
@@ -68,16 +76,19 @@ export function CamadaAmbienciaPlayer({ jogador = false, camadaId }: { jogador?:
       removerRetomada();
       audio.removeAttribute('src');
       audio.load();
+      audio.dispose();
+      loopRef.current = null;
       if (!jogador && camadaId !== CAMADA_PRINCIPAL) useAmbienciaUiStore.getState().removerCamada(camadaId);
     };
   }, [jogador, camadaId]);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = loopRef.current;
     if (!audio) return;
     const token = ++tentativa.current;
     setAviso(null);
     if (audio.getAttribute('src') !== (url ?? null)) {
+      setLoopPadrao(false);
       if (!jogador) atualizarTempo(camadaId, 0, 0);
       audio.pause();
       if (url) audio.src = url;
@@ -101,18 +112,21 @@ export function CamadaAmbienciaPlayer({ jogador = false, camadaId }: { jogador?:
   }, [url, estado.faixaAtualId, estado.tocando, estado.posicaoSegundos, estado.atualizadoEm, jogador, habilitado, camadaId]);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = loopRef.current;
     if (audio) { audio.volume = estado.volume; audio.muted = jogador && mudo; }
   }, [estado.volume, jogador, mudo]);
 
   return <>
-    <audio ref={audioRef} loop data-canal="ambiencia" data-camada={camadaId}
-      onTimeUpdate={(e) => { if (!jogador) atualizarTempo(camadaId, e.currentTarget.duration, e.currentTarget.currentTime); }}
+    <audio ref={audioRef} loop preload="metadata" data-canal="ambiencia" data-camada={camadaId}
+      onTimeUpdate={() => { const audio = loopRef.current; if (!jogador && audio) atualizarTempo(camadaId, audio.duration, audio.currentTime); }}
       onError={() => { if (obterCamadaAmbiencia(useStore.getState().ambiencia, camadaId)?.faixaAtualId) setAviso('não consegui tocar uma camada de ambiência — confira o arquivo de áudio.'); }} />
+    {loopPadrao && !jogador && <div className="mono" role="status" style={{ fontSize: 11, color: 'var(--ink-dim)', maxWidth: 260 }}>
+      ambiência {camadaId === CAMADA_PRINCIPAL ? 1 : (ambiencia.camadas?.findIndex((c) => c.id === camadaId) ?? -1) + 2}: loop padrão do navegador; a emenda pode ter uma pausa.
+    </div>}
     {aviso && <div className="mono" role="status" style={{ fontSize: 11, color: 'var(--ruido)', maxWidth: 260 }}>
       {aviso}
       {aviso.includes('bloqueada') && <button onClick={() => {
-        const audio = audioRef.current;
+        const audio = loopRef.current;
         if (audio && obterCamadaAmbiencia(useStore.getState().ambiencia, camadaId)?.tocando) void audio.play().then(() => setAviso(null), () => {});
       }}>retomar ambiência</button>}
     </div>}

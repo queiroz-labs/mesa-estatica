@@ -59,6 +59,7 @@ vi.mock('../../state/audioJogadorStore', () => ({
 function audioFalso() {
   let origem: string | null = null;
   const audio = {
+    dataset: {} as Record<string, string>,
     currentTime: 0, duration: 60, volume: 0.8, muted: false, paused: true,
     get src() { return origem ?? ''; },
     set src(valor: string) { origem = valor; audio.paused = true; },
