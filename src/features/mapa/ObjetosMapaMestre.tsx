@@ -40,7 +40,7 @@ export function AdicionarImagemMapa({ aspectoMapa }: { aspectoMapa: number }) {
   };
   return <div className="mapa-imagem-controles">
     <label className="mapa-upload-botao" aria-disabled={!mapa || ocupado}>
-      {ocupado ? 'preparando imagem…' : '+ imagem'}
+      {ocupado ? 'preparando imagem…' : '+ Símbolos'}
       <input aria-label="adicionar imagem ao mapa" type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={!mapa || ocupado || (mapa.objetos?.length ?? 0) >= MAX_OBJETOS_MAPA} onChange={e => void adicionar(e)} />
     </label>
     {ocupado && <button onClick={() => { envio.current?.abort(); envio.current = null; setOcupado(false); }}>cancelar imagem</button>}
