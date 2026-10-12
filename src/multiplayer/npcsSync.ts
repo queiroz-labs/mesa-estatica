@@ -1,4 +1,5 @@
 import type { Npc } from '../state/types';
+import { calcularEstadoTokenCombate, type EstadoTokenCombate } from '../rules/combate';
 import { supabase } from '../lib/supabaseClient';
 import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
 import { useStore } from '../state/store';
@@ -53,6 +54,8 @@ export interface NpcPublico {
   foto: string | null;
   visivel: boolean;
   notas: string;
+  /** Só indicadores para a interface do jogador; PV numéricos não fazem parte desta visão. */
+  estadoCombate?: EstadoTokenCombate;
 }
 
 export const paraLinhaPublico = (n: Npc): LinhaPublico => ({
@@ -95,6 +98,7 @@ export const paraNpcPublico = (r: LinhaPublico): NpcPublico => ({
   foto: r.foto ?? null,
   visivel: r.visivel,
   notas: r.notas,
+  estadoCombate: calcularEstadoTokenCombate(r.pv_atual, r.pv_maximo, []),
 });
 
 async function buscarEMontar(cliente: Cliente, id: string): Promise<Npc | null> {

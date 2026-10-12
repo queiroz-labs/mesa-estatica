@@ -26,10 +26,12 @@ import MapaJogadorView from './MapaJogadorView';
 import TokenScene from '../../tokens3d/TokenScene';
 import TokenOverlayJogador from './TokenOverlayJogador';
 import ObjetosMapaView from './ObjetosMapaView';
+import { paraFichaPublica, paraLinhaPublico as linhaFicha } from '../../multiplayer/fichasSync';
+import { paraNpcPublico, paraLinhaPublico as linhaNpc } from '../../multiplayer/npcsSync';
 
 const minhaFicha = { ...criarFichaVazia(), id: 'eu', nome: 'Meu personagem' };
 const outraFicha = { ...criarFichaVazia(), id: 'outro', nome: 'Outro personagem' };
-const npc = { ...criarNpcVazio(), id: 'npc', nome: 'NPC revelado', notas: 'Detalhes do NPC' };
+const npc = { ...criarNpcVazio(), id: 'npc', nome: 'NPC revelado', notas: 'Detalhes do NPC', visivel: true };
 const regiao = { id: 'luz', forma: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 };
 const props = { minhaFicha, outrasFichas: [outraFicha], npcs: [npc], iniciativa: [] };
 function elementos(no: any, tipo: any): ReactElement<any>[] {
@@ -37,9 +39,9 @@ function elementos(no: any, tipo: any): ReactElement<any>[] {
   if (!no || typeof no !== 'object') return [];
   return [...(no.type === tipo ? [no] : []), ...elementos(no.props?.children, tipo)];
 }
-function renderizar() {
+function renderizar(dados: Parameters<typeof MapaJogadorView>[0] = props) {
   h.indice = 0; h.indiceRef = 0; h.indiceEfeito = 0;
-  const tela = MapaJogadorView(props);
+  const tela = MapaJogadorView(dados);
   for (const efeito of h.efeitos) if (efeito.rodar) { efeito.limpar?.(); efeito.limpar = efeito.executar(); efeito.rodar = false; }
   return tela;
 }
@@ -59,6 +61,60 @@ beforeEach(() => {
   ] } }));
 });
 afterEach(() => h.efeitos.forEach((efeito) => efeito.limpar?.()));
+
+function propsComPv(pvAtual: number) {
+  return { ...props,
+    outrasFichas: [paraFichaPublica(linhaFicha({ ...outraFicha, pvAtual, atributos: { ...outraFicha.atributos, vigor: 0 } }, 20))],
+    npcs: [paraNpcPublico(linhaNpc({ ...npc, pvAtual, pvMaximo: 20, visivel: true }))],
+  };
+}
+
+it.each([
+  { pv: 0, estado: 'desacordado' }, { pv: -10, estado: 'morto' },
+])('mostra $estado automático de outros PCs e NPCs visíveis, sem números de PV', ({ pv, estado }) => {
+  luz(true, [regiao]);
+  const tela = renderizar(propsComPv(pv));
+  const alvos = tokens(tela).filter((t) => t.props['aria-label'] !== 'token Meu personagem');
+  expect(alvos).toHaveLength(2);
+  for (const token of alvos) {
+    expect(elementos(token, 'span').filter((el) => el.props.role === 'img').map((el) => el.props['aria-label'])).toEqual([estado]);
+    expect(token.props.title).toBe(`${token.props['aria-label'].slice(6)} — ${estado}`);
+    expect(token.props['data-morto']).toBe(estado === 'morto');
+    expect(token.props['data-desacordado']).toBe(estado === 'desacordado');
+  }
+  for (const token of elementos(tela, TokenScene)[0].props.tokens) {
+    expect(token).not.toHaveProperty('pvAtual');
+    expect(token).not.toHaveProperty('pvMaximo');
+  }
+});
+
+it('atualiza os ícones ao perder PV e retira ao recuperar PV, sem condições manuais', () => {
+  luz(false);
+  for (const [pv, esperado] of [[1, false], [0, true], [-10, true], [5, false]] as const) {
+    const alvos = tokens(renderizar(propsComPv(pv))).filter((t) => t.props['aria-label'] !== 'token Meu personagem');
+    for (const token of alvos) expect(elementos(token, 'span').some((el) => el.props.role === 'img')).toBe(esperado);
+  }
+});
+
+it('preserva as marcações manuais e a precedência de morto sobre desacordado', () => {
+  luz(false);
+  useStore.setState((s) => ({ sessaoPublica: { ...s.sessaoPublica, condicoesCombate: { outro: ['morto'], npc: ['desacordado'] } } }));
+  const alvos = tokens(renderizar(propsComPv(1))).filter((t) => t.props['aria-label'] !== 'token Meu personagem');
+  expect(alvos[0].props['data-morto']).toBe(true);
+  expect(alvos[1].props['data-desacordado']).toBe(true);
+  const mortos = tokens(renderizar(propsComPv(-10))).filter((t) => t.props['aria-label'] !== 'token Meu personagem');
+  expect(mortos.every((t) => t.props['data-morto'] && !t.props['data-desacordado'])).toBe(true);
+});
+
+it('não revela estados de tokens cobertos pela névoa nem de NPCs ocultados pelo mestre', () => {
+  expect(tokens(renderizar(propsComPv(-10))).map((t) => t.props['aria-label'])).toEqual(['token Meu personagem']);
+  luz(false);
+  const dados = propsComPv(-10);
+  dados.npcs[0].visivel = false;
+  const tela = renderizar(dados);
+  expect(tokens(tela).map((t) => t.props['aria-label'])).toEqual(['token Meu personagem', 'token Outro personagem']);
+  expect(elementos(tela, TokenScene)[0].props.tokens.some((t: any) => t.participanteId === 'npc')).toBe(false);
+});
 
 it('retira PCs e NPCs sem luz dos alvos acessíveis e do canvas, preservando o próprio token', () => {
   const tela = renderizar();

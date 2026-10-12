@@ -87,7 +87,19 @@ describe('paraNpcPublico', () => {
       foto: null,
       visivel: true,
       notas: npc.notas,
+      estadoCombate: { desacordado: false, morto: false },
     });
+  });
+
+  it.each([
+    { pvAtual: 1, desacordado: false, morto: false },
+    { pvAtual: 0, desacordado: true, morto: false },
+    { pvAtual: -9, desacordado: true, morto: false },
+    { pvAtual: -10, desacordado: true, morto: true },
+  ])('deriva o estado com PV=$pvAtual sem expor PV no objeto público da interface', ({ pvAtual, desacordado, morto }) => {
+    const publico = paraNpcPublico(paraLinhaPublico({ ...criarNpcVazio(), pvAtual, pvMaximo: 20 }));
+    expect(publico.estadoCombate).toEqual({ desacordado, morto });
+    expect(Object.keys(publico).sort()).toEqual(['id', 'nome', 'corVisual', 'silhueta', 'foto', 'visivel', 'notas', 'estadoCombate'].sort());
   });
 });
 

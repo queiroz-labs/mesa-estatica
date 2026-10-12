@@ -106,21 +106,18 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
         surtosAtivos: minhaFicha.surtosAtivos,
         tipo: 'pc' as const,
         notas: undefined as string | undefined,
-        // PV é privado (fichaSplit.ts) — só dá pra calcular automático na PRÓPRIA ficha;
-        // outro PC só mostra "morto"/"desacordado" se o mestre marcar manualmente.
-        pvAtual: minhaFicha.pvAtual as number | undefined,
-        pvMaximo: calcularPvMaximo(basePV, minhaFicha.atributos.vigor) as number | undefined,
+        // A própria ficha responde imediatamente aos ajustes locais de PV.
+        estadoCombate: calcularEstadoTokenCombate(minhaFicha.pvAtual, calcularPvMaximo(basePV, minhaFicha.atributos.vigor), []),
       };
     }
     const ficha = outrasFichas.find((f) => f.id === id);
     if (ficha) {
-      return { nome: ficha.nome || 'sem nome', cor: ficha.corVisual, foto: ficha.foto, silhueta: null as string | null, sanidadeCritica: false, surtosAtivos: [], tipo: 'pc' as const, notas: undefined as string | undefined, pvAtual: undefined as number | undefined, pvMaximo: undefined as number | undefined };
+      return { nome: ficha.nome || 'sem nome', cor: ficha.corVisual, foto: ficha.foto, silhueta: null as string | null, sanidadeCritica: false, surtosAtivos: [], tipo: 'pc' as const, notas: undefined as string | undefined, estadoCombate: ficha.estadoCombate };
     }
-    const npc = npcs.find((n) => n.id === id);
+    const npc = npcs.find((n) => n.id === id && n.visivel);
     if (npc) {
-      // PV de NPC é privado (`npcs_publico` não expõe — npcsSync.ts) — "morto"/"desacordado"
-      // de NPC no mapa do jogador só existe via marcação manual do mestre (condicoesCombate).
-      return { nome: npc.nome || 'sem nome', cor: npc.corVisual ?? COR_NPC_PADRAO, foto: npc.foto, silhueta: npc.silhueta, sanidadeCritica: false, surtosAtivos: [], tipo: 'npc' as const, notas: npc.notas as string | undefined, pvAtual: undefined as number | undefined, pvMaximo: undefined as number | undefined };
+      // A projeção do jogador fornece os indicadores, sem PV numéricos no token.
+      return { nome: npc.nome || 'sem nome', cor: npc.corVisual ?? COR_NPC_PADRAO, foto: npc.foto, silhueta: npc.silhueta, sanidadeCritica: false, surtosAtivos: [], tipo: 'npc' as const, notas: npc.notas as string | undefined, estadoCombate: npc.estadoCombate };
     }
     return null;
   };
@@ -138,7 +135,9 @@ export default function MapaJogadorView({ minhaFicha, outrasFichas, npcs, inicia
       const turnoAtivo = participanteNaVez === t.participanteId;
       const condicoes = (condicoesCombate ?? {})[t.participanteId] ?? [];
       const podeMover = t.participanteId === minhaFicha.id;
-      const { desacordado, morto } = calcularEstadoTokenCombate(p.pvAtual, p.pvMaximo, condicoes);
+      const manual = calcularEstadoTokenCombate(undefined, undefined, condicoes);
+      const desacordado = (p.estadoCombate?.desacordado ?? false) || manual.desacordado;
+      const morto = (p.estadoCombate?.morto ?? false) || manual.morto;
       return {
         id: t.id,
         participanteId: t.participanteId,

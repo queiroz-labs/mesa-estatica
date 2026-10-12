@@ -45,7 +45,7 @@ describe('paraLinhaPublico / paraFichaPublica', () => {
     expect(linha.foto).toBe('data:image/jpeg;base64,xyz');
 
     const publica = paraFichaPublica(linha);
-    expect(publica).toEqual({ id: ficha.id, nome: 'Helena', corVisual: '#4fc1d4', foto: 'data:image/jpeg;base64,xyz' });
+    expect(publica).toEqual({ id: ficha.id, nome: 'Helena', corVisual: '#4fc1d4', foto: 'data:image/jpeg;base64,xyz', estadoCombate: { desacordado: false, morto: false } });
   });
 
   it('calcula pv_maximo e defesa a partir dos atributos e basePV, não copia da ficha', () => {
@@ -59,6 +59,18 @@ describe('paraLinhaPublico / paraFichaPublica', () => {
     const linha = paraLinhaPublico({ ...criarFichaVazia(), foto: null }, 20);
     expect(linha.foto).toBeNull();
     expect(paraFichaPublica(linha).foto).toBeNull();
+  });
+
+  it.each([
+    { pvAtual: 1, desacordado: false, morto: false },
+    { pvAtual: 0, desacordado: true, morto: false },
+    { pvAtual: -9, desacordado: true, morto: false },
+    { pvAtual: -10, desacordado: true, morto: true },
+  ])('deriva o estado com PV=$pvAtual sem expor PV no objeto público da interface', ({ pvAtual, desacordado, morto }) => {
+    const ficha = criarFichaVazia();
+    const publica = paraFichaPublica(paraLinhaPublico({ ...ficha, pvAtual, atributos: { ...ficha.atributos, vigor: 0 } }, 20));
+    expect(publica.estadoCombate).toEqual({ desacordado, morto });
+    expect(Object.keys(publica).sort()).toEqual(['id', 'nome', 'corVisual', 'foto', 'estadoCombate'].sort());
   });
 });
 

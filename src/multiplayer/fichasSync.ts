@@ -1,5 +1,6 @@
 import type { BasePV } from '../rules/data/dificuldades';
 import { calcularDefesa, calcularPvMaximo } from '../rules/derivados';
+import { calcularEstadoTokenCombate } from '../rules/combate';
 import type { Ficha } from '../state/types';
 import { supabase } from '../lib/supabaseClient';
 import { assinarStatusCanalComRefetch, desconectarCanal } from '../lib/statusMesa';
@@ -65,6 +66,7 @@ export const paraFichaPublica = (r: LinhaPublico): FichaPublica => ({
   nome: r.nome,
   corVisual: r.cor_visual,
   foto: r.foto ?? null,
+  estadoCombate: calcularEstadoTokenCombate(r.pv_atual, r.pv_maximo, []),
 });
 
 async function buscarEMontar(cliente: Cliente, id: string): Promise<Ficha | null> {

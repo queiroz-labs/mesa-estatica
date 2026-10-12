@@ -1,4 +1,5 @@
 import type { Ficha } from '../state/types';
+import type { EstadoTokenCombate } from '../rules/combate';
 
 /** Superfície de mesa: o que qualquer participante vê de um PC. */
 export interface FichaPublica {
@@ -6,6 +7,8 @@ export interface FichaPublica {
   nome: string;
   corVisual: string;
   foto: string | null;
+  /** Indicadores derivados na leitura do servidor; não inclui valores de PV na visão do mapa. */
+  estadoCombate?: EstadoTokenCombate;
 }
 
 /** Resto da ficha — só o dono (via auth_uid) e o GM leem/escrevem. */
