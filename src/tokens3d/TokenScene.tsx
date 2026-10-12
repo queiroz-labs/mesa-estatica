@@ -60,7 +60,15 @@ export default function TokenScene({ tokens, width, height, active, imgRenderRec
     const camera = new THREE.OrthographicCamera(0, tamanhoRef.current.width, 0, tamanhoRef.current.height, 0.1, 1000);
     camera.position.z = 100;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    } catch {
+      // Os tokens DOM continuam disponíveis quando o 3D decorativo não pode iniciar.
+      canvas.remove();
+      container.dataset.modo = '2d';
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(tamanhoRef.current.width, tamanhoRef.current.height, false);
     cenaRef.current = { camera, renderer };
@@ -140,17 +148,28 @@ export default function TokenScene({ tokens, width, height, active, imgRenderRec
     };
     frame = requestAnimationFrame(animar);
 
-    return () => {
+    const encerrar = () => {
+      if (!vivo) return;
       vivo = false;
       cancelAnimationFrame(frame);
+      canvas.removeEventListener('webglcontextlost', perderContexto);
       for (const mesh of meshes.values()) {
         (mesh.material as THREE.Material).dispose();
       }
       geometria.dispose();
       renderer.dispose();
+      if (!renderer.getContext().isContextLost()) renderer.forceContextLoss();
       cenaRef.current = null;
-      container.removeChild(canvas);
+      canvas.remove();
     };
+    const perderContexto = (evento: Event) => {
+      evento.preventDefault();
+      // Remove a camada gráfica perdida para preservar mapa/fotos/tokens DOM.
+      container.dataset.modo = '2d';
+      encerrar();
+    };
+    canvas.addEventListener('webglcontextlost', perderContexto);
+    return encerrar;
   }, []);
 
   // resize: atualiza câmera e renderer sem tocar no contexto WebGL (ver aviso no topo do arquivo).

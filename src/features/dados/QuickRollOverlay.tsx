@@ -311,14 +311,12 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
     if (teste.pedido && teste.emExecucaoId === teste.pedido.id) { pedidoTestePendenteRef.current = null; teste.limparPedidoRolagemTeste(teste.pedido.id); }
   }, [erro, falhaRolagem]);
 
-  if (abaAtual === 'dados') return null;
 
   return (
-    <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 50 }}>
-      {aberto && (
+    <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 50, display: abaAtual === 'dados' ? 'none' : undefined }}>
         <div
           className="secao"
-          style={{ width: 'min(260px, calc(100vw - 2.5rem))', marginBottom: '0.6rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}
+          style={{ display: aberto ? undefined : 'none', width: 'min(260px, calc(100vw - 2.5rem))', marginBottom: '0.6rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h3 className="label" style={{ margin: 0 }}>
@@ -506,7 +504,6 @@ export default function QuickRollOverlay({ abaAtual, aberto, onAbertoChange, ped
             </div>
           )}
         </div>
-      )}
       <button
         className="controle-icone"
         onClick={() => onAbertoChange(!aberto)}

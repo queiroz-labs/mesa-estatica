@@ -181,12 +181,10 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
     }
   }, [ready, rolando]);
 
-  if (abaAtual === 'dados') return null;
 
   return (
-    <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 50 }}>
-      {aberto && (
-        <div className="secao" style={{ width: 'min(260px, calc(100vw - 2.5rem))', marginBottom: '0.6rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 50, display: abaAtual === 'dados' ? 'none' : undefined }}>
+        <div className="secao" style={{ display: aberto ? undefined : 'none', width: 'min(260px, calc(100vw - 2.5rem))', marginBottom: '0.6rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h3 className="label" style={{ margin: 0 }}>
               d20 rápido
@@ -281,7 +279,6 @@ export default function QuickRollOverlayJogador({ ficha, abaAtual, aberto, onAbe
           )}
 
         </div>
-      )}
       <button className="controle-icone" onClick={() => onAbertoChange(!aberto)} title="rolagem rápida (atalho: R)" aria-label="rolagem rápida d20" aria-expanded={aberto} style={{ width: 40, height: 40 }}>
         d20
       </button>

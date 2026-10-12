@@ -5,6 +5,7 @@
  * via notação `1d20@15` — o motor faz swap da face do dado (ver arquitetura.md).
  */
 declare module '@3d-dice/dice-box-threejs' {
+  import type { BufferGeometry, Camera, Mesh, Scene, SpotLight, Texture, WebGLRenderer } from 'three';
   /** Cor customizada do dado. `foreground` = cor do número; `background` = cor do corpo. */
   export interface CustomColorset {
     background?: string | string[];
@@ -63,9 +64,27 @@ declare module '@3d-dice/dice-box-threejs' {
   export default class DiceBox {
     /** 2 argumentos: seletor CSS do container + config. */
     constructor(container: string, config?: DiceBoxConfig);
-    scene: unknown;
-    diceList: unknown[];
+    scene: Scene;
+    diceList: (Mesh & { body?: unknown })[];
     initialized: boolean;
+    // Internos da versão 0.0.12 usados exclusivamente pelo adaptador de ciclo de vida.
+    container: HTMLElement;
+    dimensions: { x: number; y: number };
+    renderer?: WebGLRenderer;
+    camera: Camera;
+    desk?: Mesh;
+    light?: SpotLight;
+    running: number | false;
+    rolling: boolean;
+    world: { removeBody(body: unknown): void };
+    DiceFactory: {
+      geometries: Record<string, BufferGeometry>;
+      materials_cache: Record<string, { composite: Texture; bump: Texture | null }>;
+    };
+    resizeWorld(): void;
+    setDimensions(dimensions: { x: number; y: number }): void;
+    animateThrow(thread: number, complete: (...args: unknown[]) => void): void;
+    animateAfterThrow(thread: number): void;
     /** inicializa cena/física/assets — precisa ser chamado (e aguardado) antes de rolar. */
     initialize(): Promise<void>;
     /** notação padrão ("1d20", "1d8+1d20") ou forçada ("1d20@15", "1d8+1d20@5,15"). */

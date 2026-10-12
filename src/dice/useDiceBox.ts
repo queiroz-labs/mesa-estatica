@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import DiceBox, { type RollResults, type CustomColorset } from '@3d-dice/dice-box-threejs';
+import { type RollResults, type CustomColorset } from '@3d-dice/dice-box-threejs';
+import DiceBoxGerenciado from './DiceBoxGerenciado';
 import { COLORSETS, colorsetComCor, type ColorsetId } from './colorsets';
 import type { ConsumirForcadosFn, TipoRolagemForcada } from './registroForcados';
 import { resolverRolagemRemota } from '../multiplayer/rolagemRemota';
@@ -185,12 +186,12 @@ export function useDiceBox(
   resolverRemoto: ResolverRemoto = resolverRolagemRemota,
   consumirForcadosFn: ConsumirForcadosFn = semForcados,
 ) {
-  const boxRef = useRef<DiceBox | null>(null);
+  const boxRef = useRef<DiceBoxGerenciado | null>(null);
   const [ready, setReady] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [falhaRolagem, setFalhaRolagem] = useState(false);
   const [rolando, setRolando] = useState(false);
-  /** true quando box.initialize() falhou (sem WebGL, GPU bloqueada, etc.) — rolar() passa a usar
+  /** true quando a inicialização falhou ou o contexto gráfico foi perdido — rolar() passa a usar
    *  rolarFallback2D em vez de tentar física. A ferramenta continua funcionando, só sem o visual. */
   const [modo2D, setModo2D] = useState(false);
   /** espelho síncrono de `rolando` — a lib não enfileira roll() concorrente (ver rolar() abaixo),
@@ -204,27 +205,34 @@ export function useDiceBox(
    *  assim que a rolagem em andamento assenta. Nenhum clique se perde. */
   const filaRef = useRef<PedidoRolagem[]>([]);
 
+  // Abas e overlays só mudam a disponibilidade da bandeja. Uma vez criada,
+  // ela permanece até o unmount; uma rolagem em curso pode concluir fora da aba.
+  const [inicializar, setInicializar] = useState(enabled);
+  const geracaoRef = useRef(0);
+  const modo2DRef = useRef(false);
+  const iniciarPendenteRef = useRef<(() => void) | null>(null);
   useEffect(() => {
-    if (!enabled) {
-      setReady(false);
-      setErro(null);
-      setModo2D(false);
-      boxRef.current?.clearDice();
-      boxRef.current = null;
-      filaRef.current = [];
-      rolandoRef.current = false;
-      document.getElementById(containerId)?.replaceChildren();
-      return;
+    if (enabled) {
+      setInicializar(true);
+      boxRef.current?.redimensionar();
+      iniciarPendenteRef.current?.();
     }
+  }, [enabled]);
 
+  useEffect(() => {
+    if (!inicializar) return;
     let vivo = true;
+    const geracao = ++geracaoRef.current;
+    setReady(false);
+    setModo2D(false);
+    modo2DRef.current = false;
     const container = document.getElementById(containerId);
     if (!container) {
       setErro('container dos dados não encontrado');
       return;
     }
 
-    const box = new DiceBox(`#${containerId}`, {
+    const box = new DiceBoxGerenciado(`#${containerId}`, {
       // BASE_URL, não '/': o app é servido num subpath (`base: '/mesa-estatica/'`), então um
       // caminho absoluto da raiz dá 404 tanto em dev quanto no GitHub Pages. Passou despercebido
       // enquanto `sounds` era false — a lib gera a geometria dos dados por código e só usa o
@@ -247,43 +255,53 @@ export function useDiceBox(
     boxRef.current = box;
     colorsetAtualRef.current = 'rede';
 
-    const iniciar = async () => {
-      await new Promise((resolve) => window.requestAnimationFrame(() => resolve(undefined)));
+    const usar2D = (motivo: unknown) => {
       if (!vivo) return;
-      await box.initialize();
-      if (!vivo) {
-        // Componente desmontou (StrictMode dev double-invoke: monta, desmonta, monta de novo)
-        // enquanto `initialize()` rodava — a lib já inseriu o canvas dela no container ANTES
-        // dessa checagem rodar, então a limpeza do cleanup abaixo (que já rodou nesse meio-tempo)
-        // não pegou esse canvas. Sem isso, ele fica órfão ao lado do canvas da instância nova —
-        // dois `<canvas>` sobrepostos no mesmo container, um deles morto (nunca mais recebe
-        // comando de rolar), e só o de baixo (na ordem do DOM) fica visível — sintoma real:
-        // "a mensagem aparece, o dado nunca aparece caindo" no header (`RolagemAoVivoPlayer.tsx`,
-        // o único `useDiceBox` sempre habilitado desde o primeiro render — os outros começam
-        // desabilitados e só ligam depois que o usuário abre a aba/painel, fora da janela de
-        // double-invoke do StrictMode, por isso nunca mostraram esse sintoma).
-        container.replaceChildren();
-        return;
-      }
+      modo2DRef.current = true;
+      setErro(String(motivo));
+      setModo2D(true);
       setReady(true);
+      boxRef.current = null;
+      box.encerrar();
     };
-
-    iniciar().catch((e: unknown) => {
-      // WebGL indisponível ou falha de inicialização — cai pro modo 2D em vez de travar a
-      // ferramenta. `ready` fica true porque os roladores ficam usáveis mesmo sem física.
-      if (vivo) {
-        setErro(String(e));
-        setModo2D(true);
-        setReady(true);
-      }
-    });
+    // Captura no container: initialize cria seu próprio canvas antes do primeiro await.
+    const perderContexto = (evento: Event) => {
+      evento.preventDefault();
+      usar2D('renderização 3D interrompida — os dados continuam disponíveis em 2D');
+    };
+    container.addEventListener('webglcontextlost', perderContexto, true);
+    let frame = 0;
+    let iniciou = false;
+    const agendarInicio = () => {
+      if (iniciou) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        // Um painel pode fechar antes deste frame. Aguarda a próxima abertura,
+        // evitando inicializar câmera/física com dimensões zero.
+        if (!vivo || container.clientWidth === 0 || container.clientHeight === 0) return;
+        iniciou = true;
+        iniciarPendenteRef.current = null;
+        void box.initialize().then(() => {
+          if (vivo && !modo2DRef.current) setReady(true);
+        }).catch(usar2D);
+      });
+    };
+    iniciarPendenteRef.current = agendarInicio;
+    agendarInicio();
 
     return () => {
       vivo = false;
-      boxRef.current = null;
-      container.replaceChildren();
+      geracaoRef.current = geracao + 1;
+      window.cancelAnimationFrame(frame);
+      iniciarPendenteRef.current = null;
+      container.removeEventListener('webglcontextlost', perderContexto, true);
+      if (boxRef.current === box) boxRef.current = null;
+      filaRef.current = [];
+      rolandoRef.current = false;
+      setRolando(false);
+      box.encerrar();
     };
-  }, [containerId, enabled, baseScale]);
+  }, [containerId, inicializar, baseScale]);
 
   // a lib não protege roll() concorrente: uma segunda chamada enquanto a primeira ainda anima
   // reescreve notationVectors/diceList (estado único da instância) e derruba o resultado da
@@ -291,35 +309,57 @@ export function useDiceBox(
   // nesse meio-tempo entram na fila e tocam sozinhos, em ordem, sem o mestre precisar clicar de novo.
   const executarRolagem = async (pedido: PedidoRolagem) => {
     const box = boxRef.current;
-    if (!box) {
+    const geracao = geracaoRef.current;
+    if (!box && !modo2DRef.current) {
       filaRef.current = [];
       rolandoRef.current = false;
       setRolando(false);
       return;
     }
     try {
+      if (modo2DRef.current) {
+        if (pedido.notacaoForcada) {
+          const valores = pedido.notacaoForcada.split('@')[1].split(',').map(Number);
+          let cursor = 0;
+          pedido.onComplete(pedido.termos.map(t => {
+            const rolls = Array.from({ length: t.qty }, () => ({ value: valores[cursor++] }));
+            return { qty: t.qty, sides: t.sides, value: rolls.reduce((soma, r) => soma + r.value, 0), rolls };
+          }));
+        } else {
+          const grupos = await rolarFallback2D(pedido.termos, pedido.personagemId, resolverRemoto, consumirForcadosFn, pedido.tipo);
+          if (geracao === geracaoRef.current) pedido.onComplete(grupos);
+        }
+        return;
+      }
+      if (!box) return;
       // só recarrega o tema se o colorset pedido for diferente do atual — updateConfig é async
       // e refaz o loadTheme, então evitar isso em toda rolagem honesta (padrão 'rede').
       const chave = chaveColorset(pedido.colorset);
       if (chave !== colorsetAtualRef.current) {
         await box.updateConfig({ theme_customColorset: resolverColorset(pedido.colorset) });
+        if (geracao !== geracaoRef.current) return;
         colorsetAtualRef.current = chave;
       }
       const notacao =
         pedido.notacaoForcada ??
         (await montarNotacao(pedido.termos, pedido.personagemId, resolverRemoto, consumirForcadosFn, pedido.tipo));
+      if (geracao !== geracaoRef.current) return;
       const r = await box.roll(notacao);
-      pedido.onComplete(paraGrupos(r));
+      if (geracao === geracaoRef.current) pedido.onComplete(paraGrupos(r));
     } catch (e: unknown) {
-      setErro(String(e));
-      setFalhaRolagem(true);
+      if (geracao === geracaoRef.current) {
+        setErro(String(e));
+        setFalhaRolagem(true);
+      }
     } finally {
-      const proximo = filaRef.current.shift();
-      if (proximo) {
-        void executarRolagem(proximo);
-      } else {
-        rolandoRef.current = false;
-        setRolando(false);
+      if (geracao === geracaoRef.current) {
+        const proximo = filaRef.current.shift();
+        if (proximo) {
+          void executarRolagem(proximo);
+        } else {
+          rolandoRef.current = false;
+          setRolando(false);
+        }
       }
     }
   };
@@ -334,13 +374,7 @@ export function useDiceBox(
     const termos = normalizarTermos(notacao);
     setErro(null);
     setFalhaRolagem(false);
-    if (modo2D) {
-      // sem física rodando, então sem concorrência real pra proteger — resolve na hora (async
-      // por dentro só pra poder tentar o servidor primeiro; onComplete dispara quando chegar).
-      void rolarFallback2D(termos, personagemId, resolverRemoto, consumirForcadosFn, tipo).then(onComplete).catch((e: unknown) => { setErro(String(e)); setFalhaRolagem(true); });
-      return;
-    }
-    if (!boxRef.current) return;
+    if (!enabled || (!boxRef.current && !modo2DRef.current)) return;
     const pedido: PedidoRolagem = { termos, onComplete, colorset, personagemId, tipo };
     if (rolandoRef.current) {
       filaRef.current.push(pedido);
@@ -364,16 +398,7 @@ export function useDiceBox(
   ) => {
     setErro(null);
     setFalhaRolagem(false);
-    if (modo2D) {
-      let cursor = 0;
-      const grupos: GrupoResultado[] = termos.map((t) => {
-        const rolls = Array.from({ length: t.qty }, () => ({ value: valores[cursor++] ?? 0 }));
-        return { qty: t.qty, sides: t.sides, value: rolls.reduce((soma, r) => soma + r.value, 0), rolls };
-      });
-      onComplete(grupos);
-      return;
-    }
-    if (!boxRef.current) return;
+    if (!enabled || (!boxRef.current && !modo2DRef.current)) return;
     const base = termos.map((t) => `${t.qty}d${t.sides}`).join('+');
     const pedido: PedidoRolagem = {
       termos,
@@ -392,5 +417,5 @@ export function useDiceBox(
     void executarRolagem(pedido);
   };
 
-  return { ready, erro, falhaRolagem, rolando, modo2D, rolar, reproduzir };
+  return { ready: ready && enabled, erro, falhaRolagem, rolando, modo2D, rolar, reproduzir };
 }
